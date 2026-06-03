@@ -222,7 +222,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, currentUser: user }));
   };
 
-  const logout = () => setState((s) => ({ ...s, currentUser: null }));
+  const logout = () => {
+    supabase.auth.signOut().catch(() => {});
+    setState((s) => ({ ...s, currentUser: null }));
+  };
 
   const addProduct = (p: Omit<Product, "id" | "sales" | "rating" | "approved">) => {
     setState((s) => ({
