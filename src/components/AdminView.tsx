@@ -63,15 +63,16 @@ function ProductsTab() {
   const [reason, setReason] = useState("");
 
   const load = async () => {
-    let q = supabase.from("products").select("*, profiles!products_seller_id_fkey(name, public_id), categories(name)").order("created_at", { ascending: false });
-    // FK alias may not exist; fall back if needed
-    let { data, error } = await q;
-    if (error) {
-      const r = await supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false });
-      data = r.data;
+    const { data: prods } = await supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false });
+    let rows: any[] = prods || [];
+    if (rows.length) {
+      const ids = [...new Set(rows.map((p) => p.seller_id))];
+      const { data: profs } = await supabase.from("profiles").select("id, name, public_id").in("id", ids);
+      const map = new Map((profs || []).map((p) => [p.id, p]));
+      rows = rows.map((p) => ({ ...p, profiles: map.get(p.seller_id) }));
     }
-    if (filter !== "all") data = (data || []).filter((p: any) => p.status === filter);
-    setItems(data || []);
+    if (filter !== "all") rows = rows.filter((p) => p.status === filter);
+    setItems(rows);
   };
   useEffect(() => { load(); }, [filter]);
 
@@ -168,13 +169,15 @@ function WithdrawalsTab() {
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = async () => {
-    const { data } = await supabase.from("withdraw_requests").select("*, profiles!withdraw_requests_user_id_fkey(name, public_id, email)").order("created_at", { ascending: false });
-    let rows = data;
-    if (!rows) {
-      const r = await supabase.from("withdraw_requests").select("*").order("created_at", { ascending: false });
-      rows = r.data;
+    const { data } = await supabase.from("withdraw_requests").select("*").order("created_at", { ascending: false });
+    let rows: any[] = data || [];
+    if (rows.length) {
+      const ids = [...new Set(rows.map((w) => w.user_id))];
+      const { data: profs } = await supabase.from("profiles").select("id, name, public_id, email").in("id", ids);
+      const map = new Map((profs || []).map((p) => [p.id, p]));
+      rows = rows.map((w) => ({ ...w, profiles: map.get(w.user_id) }));
     }
-    setItems(rows || []);
+    setItems(rows);
   };
   useEffect(() => { load(); }, []);
 
@@ -349,7 +352,7 @@ function ReportsTab() {
     setItems(data || []);
   };
   useEffect(() => { load(); }, []);
-  const setStatus = async (id: string, status: string) => {
+  const setStatus = async (id: string, status: "open" | "reviewing" | "resolved" | "dismissed") => {
     await supabase.from("reports").update({ status }).eq("id", id);
     toast.success("Status atualizado"); load();
   };
