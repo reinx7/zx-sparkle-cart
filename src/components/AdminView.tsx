@@ -1,466 +1,496 @@
-import React, { useState } from "react";
-import { useStore, Product, SupportTicket } from "@/store/StoreContext";
-import { ShieldEmoji, StarEmoji, ChatEmoji } from "@/components/CustomEmojis";
-import { X, Eye, Send } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuthUser } from "@/hooks/useAuthUser";
+import { ShieldEmoji } from "@/components/CustomEmojis";
+import { Eye, X, Search, Loader2, Check, Ban, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
-type AdminTab = "config" | "categories" | "products" | "purchases" | "withdrawals" | "support" | "notices" | "users" | "adminchat";
+type Tab = "config" | "products" | "withdrawals" | "users" | "categories" | "reports";
 
 export default function AdminView() {
-  const {
-    state, updateConfig, approveProduct, rejectProduct, approvePurchase, revertPurchase,
-    approveWithdraw, rejectWithdraw, banUser, unbanUser, replyTicket, setGlobalNotice,
-    deleteProduct, closeTicket, resolveTicket, publishNotice, sendAdminChat,
-  } = useStore();
-  const [tab, setTab] = useState<AdminTab>("config");
-  const [newCat, setNewCat] = useState("");
-  const [notice, setNotice] = useState("");
-  const [adminReply, setAdminReply] = useState("");
-  const [rejectReason, setRejectReason] = useState("");
-  const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
-  const [showRejectModal, setShowRejectModal] = useState<number | null>(null);
-  const [ticketFilter, setTicketFilter] = useState<"open" | "closed">("open");
-  const [chatMsg, setChatMsg] = useState("");
+  const { user } = useAuthUser();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [tab, setTab] = useState<Tab>("products");
 
-  const tabs: { key: AdminTab; label: string }[] = [
-    { key: "config", label: "Config" },
-    { key: "categories", label: "Categorias" },
-    { key: "products", label: "Produtos" },
-    { key: "purchases", label: "Compras" },
-    { key: "withdrawals", label: "Saques" },
-    { key: "support", label: "Suporte" },
-    { key: "notices", label: "Avisos" },
-    { key: "users", label: "Usuários" },
-    { key: "adminchat", label: "Chat Equipe" },
+  useEffect(() => {
+    if (!user) { setIsAdmin(false); return; }
+    supabase.rpc("has_role", { _user_id: user.id, _role: "admin" }).then(({ data }) => setIsAdmin(!!data));
+  }, [user]);
+
+  if (isAdmin === null) return <div className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
+  if (!isAdmin) return <div className="p-8 text-center text-muted-foreground">Acesso restrito a administradores.</div>;
+
+  const tabs: { k: Tab; label: string }[] = [
+    { k: "products", label: "Produtos" },
+    { k: "withdrawals", label: "Saques" },
+    { k: "users", label: "Usuários" },
+    { k: "reports", label: "Denúncias" },
+    { k: "categories", label: "Categorias" },
+    { k: "config", label: "Config" },
   ];
-
-  const adminMessages = state.adminChat || [];
 
   return (
     <div className="animate-fade-in-up">
-      <div className="flex items-center gap-3 mb-8">
+      <div className="flex items-center gap-3 mb-6">
         <h1 className="text-3xl md:text-4xl font-black text-foreground">Painel Admin</h1>
         <ShieldEmoji className="w-8 h-8" />
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1.5 overflow-x-auto pb-4 mb-6 scrollbar-hide">
+      <div className="flex gap-1.5 overflow-x-auto pb-3 mb-5 scrollbar-hide">
         {tabs.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all ${tab === t.key ? "btn-gradient" : "bg-card border border-border/40 text-muted-foreground"}`}>
+          <button key={t.k} onClick={() => setTab(t.k)} className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold ${tab === t.k ? "btn-gradient" : "bg-card border border-border/40 text-muted-foreground"}`}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* Config */}
-      {tab === "config" && (
-        <div className="glass-card p-6 space-y-4">
-          <h3 className="font-bold text-foreground mb-2">Configurações Gerais</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-muted-foreground uppercase block mb-1">Taxa Comissão (%)</label>
-              <input type="number" value={state.config.commission} onChange={(e) => updateConfig({ commission: +e.target.value })} className="w-full p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary" />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-muted-foreground uppercase block mb-1">Taxa Saque Instantâneo (%)</label>
-              <input type="number" value={state.config.instantFee} onChange={(e) => updateConfig({ instantFee: +e.target.value })} className="w-full p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary" />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-muted-foreground uppercase block mb-1">Link Discord</label>
-              <input value={state.config.discordLink} onChange={(e) => updateConfig({ discordLink: e.target.value })} className="w-full p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary" />
-            </div>
-          </div>
+      {tab === "products" && <ProductsTab />}
+      {tab === "withdrawals" && <WithdrawalsTab />}
+      {tab === "users" && <UsersTab />}
+      {tab === "reports" && <ReportsTab />}
+      {tab === "categories" && <CategoriesTab />}
+      {tab === "config" && <ConfigTab />}
+    </div>
+  );
+}
 
-          {/* Stripe / Pagamentos */}
-          <div className="border-t border-border/40 pt-4 mt-4">
-            <h4 className="font-bold text-foreground mb-3">Pagamentos (Stripe)</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase block mb-1">Stripe Publishable Key</label>
-                <input value={state.config.stripePublishableKey} onChange={(e) => updateConfig({ stripePublishableKey: e.target.value })} placeholder="pk_..." className="w-full p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase block mb-1">Stripe Secret Key</label>
-                <input value={state.config.stripeSecretKey} onChange={(e) => updateConfig({ stripeSecretKey: e.target.value })} placeholder="sk_..." type="password" className="w-full p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary" />
-              </div>
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-2">Configure ambas as chaves para ativar pagamentos automáticos via Stripe Checkout.</p>
-          </div>
+/* ============== PRODUCTS ============== */
+function ProductsTab() {
+  const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [items, setItems] = useState<any[]>([]);
+  const [preview, setPreview] = useState<any | null>(null);
+  const [rejectId, setRejectId] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
 
-          <button onClick={() => toast.success("Configurações salvas!")} className="btn-gradient px-5 py-2.5 text-sm mt-2">Salvar</button>
-        </div>
-      )}
+  const load = async () => {
+    let q = supabase.from("products").select("*, profiles!products_seller_id_fkey(name, public_id), categories(name)").order("created_at", { ascending: false });
+    // FK alias may not exist; fall back if needed
+    let { data, error } = await q;
+    if (error) {
+      const r = await supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false });
+      data = r.data;
+    }
+    if (filter !== "all") data = (data || []).filter((p: any) => p.status === filter);
+    setItems(data || []);
+  };
+  useEffect(() => { load(); }, [filter]);
 
-      {/* Categories */}
-      {tab === "categories" && (
-        <div className="glass-card p-6">
-          <h3 className="font-bold text-foreground mb-4">Categorias</h3>
-          <div className="flex gap-2 mb-4">
-            <input value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="Nova categoria" className="flex-1 p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary" />
-            <button onClick={() => { if (newCat) { updateConfig({ categories: [...state.config.categories, newCat] }); setNewCat(""); toast.success("Categoria adicionada!"); } }} className="btn-gradient px-4 py-2 text-sm">Adicionar</button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {state.config.categories.map((c) => (
-              <span key={c} className="px-3 py-1.5 bg-muted rounded-full text-xs font-semibold text-foreground flex items-center gap-2">
-                {c}
-                <button onClick={() => updateConfig({ categories: state.config.categories.filter((x) => x !== c) })} className="text-destructive font-bold">×</button>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
+  const approve = async (id: string) => {
+    const { error } = await supabase.from("products").update({ status: "approved", rejection_reason: null }).eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Produto aprovado");
+    load();
+  };
+  const reject = async () => {
+    if (!rejectId) return;
+    const { error } = await supabase.from("products").update({ status: "rejected", rejection_reason: reason }).eq("id", rejectId);
+    if (error) return toast.error(error.message);
+    toast.success("Produto rejeitado");
+    setRejectId(null); setReason(""); load();
+  };
 
-      {/* Products with preview modal */}
-      {tab === "products" && (
-        <div className="glass-card overflow-hidden">
-          <div className="p-5 border-b border-border/30 flex justify-between items-center">
-            <h3 className="font-bold text-foreground">Todos os Produtos</h3>
-            <span className="admin-badge">{state.products.filter((p) => !p.approved).length} pendentes</span>
-          </div>
-          {state.products.length === 0 ? (
-            <p className="p-6 text-muted-foreground text-center text-sm">Nenhum produto cadastrado.</p>
-          ) : (
-            <div className="divide-y divide-border/20">
-              {state.products.map((p) => (
-                <div key={p.id} className="p-4 flex items-center gap-4">
-                  <img src={p.image} className="w-12 h-12 rounded-xl object-cover" alt="" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground text-sm truncate">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">{p.seller} · {p.category}</p>
-                  </div>
-                  <p className="font-bold text-foreground text-sm">R$ {p.price.toFixed(2)}</p>
-                  <button onClick={() => setPreviewProduct(p)} className="p-1.5 rounded-lg hover:bg-muted transition" title="Visualizar">
-                    <Eye className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                  {!p.approved ? (
-                    <div className="flex gap-2">
-                      <button onClick={() => { approveProduct(p.id); toast.success("Aprovado!"); }} className="text-success font-bold text-xs">Aprovar</button>
-                      <button onClick={() => setShowRejectModal(p.id)} className="text-destructive font-bold text-xs">Rejeitar</button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full">Ativo</span>
-                      <button onClick={() => { deleteProduct(p.id); toast.success("Produto removido!"); }} className="text-destructive text-xs font-bold hover:underline">Excluir</button>
-                    </div>
-                  )}
+  return (
+    <div>
+      <div className="flex gap-2 mb-3">
+        {(["pending", "approved", "rejected", "all"] as const).map((f) => (
+          <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+            {f === "pending" ? "Pendentes" : f === "approved" ? "Aprovados" : f === "rejected" ? "Rejeitados" : "Todos"}
+          </button>
+        ))}
+      </div>
+      <div className="glass-card overflow-hidden">
+        {items.length === 0 ? (
+          <p className="p-6 text-center text-sm text-muted-foreground">Nenhum produto.</p>
+        ) : (
+          <div className="divide-y divide-border/20">
+            {items.map((p) => (
+              <div key={p.id} className="p-4 flex items-center gap-3">
+                {p.image_url ? <img src={p.image_url} className="w-12 h-12 rounded-xl object-cover" alt="" /> : <div className="w-12 h-12 rounded-xl bg-muted" />}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-foreground text-sm truncate">{p.name}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{p.profiles?.name || "—"} · {p.profiles?.public_id || ""} · {p.categories?.name || "—"}</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Product Preview Modal */}
-      {previewProduct && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-foreground/40 backdrop-blur-sm" onClick={() => setPreviewProduct(null)}>
-          <div className="glass-card w-full max-w-2xl p-0 bg-card animate-fade-in-up overflow-hidden max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="relative h-56 sm:h-72">
-              <img src={previewProduct.banner || previewProduct.image} className="w-full h-full object-cover" alt={previewProduct.name} />
-              <button onClick={() => setPreviewProduct(null)} className="absolute top-3 right-3 bg-card/90 backdrop-blur p-2 rounded-xl">
-                <X className="w-5 h-5 text-foreground" />
-              </button>
-              {!previewProduct.approved && <div className="absolute top-3 left-3 admin-badge">Pendente</div>}
-            </div>
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <h2 className="text-xl font-black text-foreground">{previewProduct.name}</h2>
-                  <p className="text-sm text-muted-foreground">{previewProduct.category} · por <span className="text-primary font-semibold">{previewProduct.seller}</span></p>
-                </div>
-                <p className="text-2xl font-black text-foreground">R$ {previewProduct.price.toFixed(2)}</p>
-              </div>
-              <p className="text-sm text-foreground mb-4 leading-relaxed">{previewProduct.description}</p>
-              {previewProduct.variations && previewProduct.variations.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="text-xs font-bold text-muted-foreground uppercase mb-2">Variações</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {previewProduct.variations.map((v, i) => (
-                      <span key={i} className="px-3 py-1.5 bg-muted rounded-full text-xs font-semibold text-foreground">{v.name} — R$ {v.price.toFixed(2)}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
-                <div className="bg-muted p-3 rounded-xl">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Vendas</p>
-                  <p className="font-black text-foreground">{previewProduct.sales}</p>
-                </div>
-                <div className="bg-muted p-3 rounded-xl">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Entrega</p>
-                  <p className="font-black text-foreground">{previewProduct.deliveryType === "auto" ? "Automática" : "Manual"}</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                {!previewProduct.approved && (
+                <p className="font-bold text-foreground text-sm">R$ {Number(p.price).toFixed(2)}</p>
+                <button onClick={() => setPreview(p)} className="p-1.5 rounded-lg hover:bg-muted"><Eye className="w-4 h-4" /></button>
+                {p.status === "pending" && (
                   <>
-                    <button onClick={() => { approveProduct(previewProduct.id); toast.success("Produto aprovado!"); setPreviewProduct(null); }} className="flex-1 btn-gradient py-3 text-sm">Aprovar</button>
-                    <button onClick={() => { setShowRejectModal(previewProduct.id); setPreviewProduct(null); }} className="flex-1 bg-destructive text-destructive-foreground py-3 rounded-2xl font-bold text-sm">Rejeitar</button>
+                    <button onClick={() => approve(p.id)} className="text-success font-bold text-xs">Aprovar</button>
+                    <button onClick={() => setRejectId(p.id)} className="text-destructive font-bold text-xs">Rejeitar</button>
                   </>
                 )}
-                <button onClick={() => { deleteProduct(previewProduct.id); toast.success("Produto excluído!"); setPreviewProduct(null); }} className="px-4 py-3 border border-destructive text-destructive rounded-2xl font-bold text-sm">Excluir</button>
-                <button onClick={() => setPreviewProduct(null)} className="px-4 py-3 border border-border rounded-2xl font-bold text-sm text-muted-foreground">Fechar</button>
+                {p.status === "approved" && <span className="text-[10px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full">Ativo</span>}
+                {p.status === "rejected" && <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">Rejeitado</span>}
               </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {preview && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-foreground/50 backdrop-blur-sm" onClick={() => setPreview(null)}>
+          <div className="glass-card w-full max-w-xl p-0 bg-card overflow-hidden max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            {preview.image_url && <img src={preview.image_url} className="w-full h-56 object-cover" alt="" />}
+            <div className="p-5">
+              <h3 className="text-xl font-black text-foreground mb-1">{preview.name}</h3>
+              <p className="text-xs text-muted-foreground mb-3">R$ {Number(preview.price).toFixed(2)} · {preview.delivery_type}</p>
+              <p className="text-sm text-foreground whitespace-pre-wrap">{preview.description}</p>
+              {preview.delivery_type === "auto" && (
+                <div className="mt-3 bg-muted rounded-xl p-3">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Conteúdo de entrega automática</p>
+                  <p className="text-xs font-mono text-foreground break-all">{preview.delivery_content}</p>
+                </div>
+              )}
+              <button onClick={() => setPreview(null)} className="mt-4 w-full btn-gradient p-2 text-sm">Fechar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Reject modal */}
-      {showRejectModal !== null && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-foreground/40 backdrop-blur-sm" onClick={() => setShowRejectModal(null)}>
-          <div className="glass-card w-full max-w-sm p-6 bg-card animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-bold text-foreground mb-3">Motivo da Rejeição</h3>
-            <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Explique o motivo..." rows={3} className="w-full p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary resize-none mb-3" />
+      {rejectId && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-foreground/50 backdrop-blur-sm" onClick={() => setRejectId(null)}>
+          <div className="glass-card w-full max-w-sm p-6 bg-card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-foreground mb-3">Motivo da rejeição</h3>
+            <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className="w-full p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary resize-none mb-3" />
             <div className="flex gap-2">
-              <button onClick={() => { rejectProduct(showRejectModal); toast.error("Produto rejeitado! Motivo: " + (rejectReason || "Sem motivo")); setShowRejectModal(null); setRejectReason(""); }} className="flex-1 bg-destructive text-destructive-foreground py-2.5 rounded-xl font-bold text-sm">Rejeitar</button>
-              <button onClick={() => { setShowRejectModal(null); setRejectReason(""); }} className="flex-1 border border-border py-2.5 rounded-xl font-bold text-sm text-muted-foreground">Cancelar</button>
+              <button onClick={reject} className="flex-1 bg-destructive text-destructive-foreground py-2.5 rounded-xl font-bold text-sm">Rejeitar</button>
+              <button onClick={() => setRejectId(null)} className="flex-1 border border-border py-2.5 rounded-xl font-bold text-sm">Cancelar</button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Purchases */}
-      {tab === "purchases" && (
-        <div className="glass-card overflow-hidden">
-          <div className="p-5 border-b border-border/30">
-            <h3 className="font-bold text-foreground">Compras</h3>
-          </div>
-          {state.purchases.length === 0 ? (
-            <p className="p-6 text-muted-foreground text-center text-sm">Nenhuma compra registrada.</p>
-          ) : (
-            <div className="divide-y divide-border/20">
-              {state.purchases.map((p) => {
-                const product = state.products.find((pr) => pr.id === p.productId);
-                return (
-                  <div key={p.id} className="p-4 flex items-center gap-4">
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground text-sm">{product?.name || "Produto"}</p>
-                      <p className="text-xs text-muted-foreground">Comprador: {p.buyerEmail}</p>
-                    </div>
-                    <p className="font-bold text-foreground text-sm">R$ {p.amount.toFixed(2)}</p>
-                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${p.status === "paid" ? "bg-success/10 text-success" : p.status === "delivered" ? "bg-primary/10 text-primary" : p.status === "dispute" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
-                      {p.status === "paid" ? "Pago" : p.status === "delivered" ? "Entregue" : p.status === "dispute" ? "Disputa" : "Pendente"}
-                    </span>
-                    {p.status === "paid" && (
-                      <div className="flex gap-2">
-                        <button onClick={() => { approvePurchase(p.id); toast.success("Entrega aprovada!"); }} className="text-success font-bold text-xs">Aprovar</button>
-                        <button onClick={() => { revertPurchase(p.id); toast.error("Pagamento revertido!"); }} className="text-destructive font-bold text-xs">Reverter</button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+/* ============== WITHDRAWALS ============== */
+function WithdrawalsTab() {
+  const [items, setItems] = useState<any[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = async () => {
+    const { data } = await supabase.from("withdraw_requests").select("*, profiles!withdraw_requests_user_id_fkey(name, public_id, email)").order("created_at", { ascending: false });
+    let rows = data;
+    if (!rows) {
+      const r = await supabase.from("withdraw_requests").select("*").order("created_at", { ascending: false });
+      rows = r.data;
+    }
+    setItems(rows || []);
+  };
+  useEffect(() => { load(); }, []);
+
+  const act = async (id: string, action: "approve" | "reject", note?: string) => {
+    setBusy(id);
+    const { data, error } = await supabase.functions.invoke("admin-approve-withdraw", { body: { withdraw_id: id, action, note } });
+    setBusy(null);
+    if (error || data?.error) return toast.error(data?.error || error?.message || "Erro");
+    toast.success(action === "approve" ? "Saque enviado para o gateway" : "Saque rejeitado e valor devolvido");
+    load();
+  };
+
+  return (
+    <div className="glass-card overflow-hidden">
+      {items.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">Sem solicitações.</p> : (
+        <div className="divide-y divide-border/20">
+          {items.map((w) => (
+            <div key={w.id} className="p-4 flex items-center gap-3 flex-wrap">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-foreground text-sm">{w.profiles?.name || w.user_id}</p>
+                <p className="text-[11px] text-muted-foreground">{w.profiles?.public_id} · {w.pix_type}: <span className="font-mono">{w.pix_key}</span></p>
+                <p className="text-[10px] text-muted-foreground">{new Date(w.created_at).toLocaleString("pt-BR")}</p>
+              </div>
+              <p className="font-bold text-foreground text-sm">R$ {Number(w.amount).toFixed(2)}</p>
+              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${w.status === "pending" ? "bg-primary/10 text-primary" : w.status === "completed" ? "bg-success/10 text-success" : w.status === "processing" ? "bg-accent/10 text-accent-foreground" : "bg-destructive/10 text-destructive"}`}>{w.status}</span>
+              {w.status === "pending" && (
+                <div className="flex gap-2">
+                  <button disabled={busy === w.id} onClick={() => act(w.id, "approve")} className="text-success font-bold text-xs disabled:opacity-50">{busy === w.id ? "..." : "Aprovar"}</button>
+                  <button disabled={busy === w.id} onClick={() => { const n = prompt("Motivo?"); if (n !== null) act(w.id, "reject", n); }} className="text-destructive font-bold text-xs disabled:opacity-50">Rejeitar</button>
+                </div>
+              )}
             </div>
-          )}
+          ))}
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Withdrawals */}
-      {tab === "withdrawals" && (
-        <div className="glass-card overflow-hidden">
-          <div className="p-5 border-b border-border/30">
-            <h3 className="font-bold text-foreground">Solicitações de Saque</h3>
+/* ============== USERS ============== */
+function UsersTab() {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<any[]>([]);
+  const [selected, setSelected] = useState<any | null>(null);
+  const [banScope, setBanScope] = useState<"full" | "sell" | "buy" | "withdraw">("full");
+  const [banReason, setBanReason] = useState("");
+  const [activeBans, setActiveBans] = useState<any[]>([]);
+  const { user } = useAuthUser();
+
+  const search = async () => {
+    if (!q.trim()) return;
+    const term = q.trim();
+    const { data } = await supabase.from("profiles")
+      .select("id, public_id, name, email, status, kyc_status, is_verified_seller")
+      .or(`public_id.ilike.%${term}%,email.ilike.%${term}%,name.ilike.%${term}%`)
+      .limit(20);
+    setResults(data || []);
+  };
+
+  const loadBans = async (uid: string) => {
+    const { data } = await supabase.from("bans").select("*").eq("user_id", uid).eq("active", true);
+    setActiveBans(data || []);
+  };
+
+  const openUser = async (u: any) => {
+    setSelected(u);
+    loadBans(u.id);
+  };
+
+  const ban = async () => {
+    if (!selected || !banReason.trim() || !user) return;
+    const { error } = await supabase.from("bans").insert({
+      user_id: selected.id, scope: banScope, reason: banReason, admin_id: user.id, active: true,
+    });
+    if (error) return toast.error(error.message);
+    await supabase.from("admin_logs").insert({ admin_id: user.id, action: "ban", target_type: "user", target_id: selected.id, meta: { scope: banScope, reason: banReason } });
+    toast.success("Banimento aplicado");
+    setBanReason(""); loadBans(selected.id);
+  };
+
+  const unban = async (id: string) => {
+    await supabase.from("bans").update({ active: false }).eq("id", id);
+    if (user) await supabase.from("admin_logs").insert({ admin_id: user.id, action: "unban", target_type: "ban", target_id: id });
+    toast.success("Banimento removido");
+    if (selected) loadBans(selected.id);
+  };
+
+  const setVerified = async (v: boolean) => {
+    if (!selected) return;
+    await supabase.from("profiles").update({ is_verified_seller: v }).eq("id", selected.id);
+    setSelected({ ...selected, is_verified_seller: v });
+    toast.success(v ? "Vendedor verificado" : "Verificação removida");
+  };
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-4">
+        <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && search()}
+          placeholder="Buscar por ID público (ZX-XXXXXX), email ou nome..."
+          className="flex-1 p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary" />
+        <button onClick={search} className="btn-gradient px-4 py-2 text-sm flex items-center gap-1"><Search className="w-4 h-4" /></button>
+      </div>
+
+      <div className="glass-card overflow-hidden">
+        {results.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">Busque para começar.</p> : (
+          <div className="divide-y divide-border/20">
+            {results.map((u) => (
+              <button key={u.id} onClick={() => openUser(u)} className="w-full p-3 flex items-center gap-3 hover:bg-muted/30 text-left">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-foreground">{u.name} <span className="text-[10px] font-mono text-muted-foreground">{u.public_id}</span></p>
+                  <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                </div>
+                {u.is_verified_seller && <span className="text-[10px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full">Verificado</span>}
+                {u.status !== "active" && <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">{u.status}</span>}
+              </button>
+            ))}
           </div>
-          {state.withdrawals.length === 0 ? (
-            <p className="p-6 text-muted-foreground text-center text-sm">Nenhuma solicitação.</p>
-          ) : (
-            <div className="divide-y divide-border/20">
-              {state.withdrawals.map((w) => (
-                <div key={w.id} className="p-4 flex items-center gap-4">
-                  <div className="flex-1">
-                    <p className="font-medium text-foreground text-sm">{w.userEmail}</p>
-                    <p className="text-xs text-muted-foreground">{w.method === "instant" ? "Instantâneo" : "Normal"} · {new Date(w.createdAt).toLocaleDateString("pt-BR")}</p>
-                  </div>
-                  <p className="font-bold text-foreground text-sm">R$ {w.amount.toFixed(2)}</p>
-                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${w.status === "pending" ? "bg-primary/10 text-primary" : w.status === "approved" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{w.status}</span>
-                  {w.status === "pending" && (
-                    <div className="flex gap-2">
-                      <button onClick={() => { approveWithdraw(w.id); toast.success("Saque aprovado!"); }} className="text-success font-bold text-xs">Aprovar</button>
-                      <button onClick={() => { rejectWithdraw(w.id); toast.error("Saque rejeitado!"); }} className="text-destructive font-bold text-xs">Rejeitar</button>
-                    </div>
-                  )}
+        )}
+      </div>
+
+      {selected && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 bg-foreground/50 backdrop-blur-sm" onClick={() => setSelected(null)}>
+          <div className="glass-card w-full max-w-lg p-6 bg-card max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <h3 className="text-lg font-black text-foreground">{selected.name}</h3>
+                <p className="text-xs text-muted-foreground font-mono">{selected.public_id}</p>
+                <p className="text-xs text-muted-foreground">{selected.email}</p>
+              </div>
+              <button onClick={() => setSelected(null)} className="p-2 hover:bg-muted rounded-xl"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setVerified(!selected.is_verified_seller)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${selected.is_verified_seller ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success"}`}>
+                {selected.is_verified_seller ? "Remover verificação" : "Marcar como verificado"}
+              </button>
+            </div>
+
+            <div className="border border-border/40 rounded-xl p-3 mb-3">
+              <p className="text-xs font-bold text-muted-foreground uppercase mb-2">Banimentos ativos</p>
+              {activeBans.length === 0 ? <p className="text-xs text-muted-foreground">Nenhum.</p> : activeBans.map((b) => (
+                <div key={b.id} className="flex items-center justify-between text-xs py-1">
+                  <div><b>{b.scope}</b> · {b.reason}</div>
+                  <button onClick={() => unban(b.id)} className="text-primary font-bold text-[11px]">Remover</button>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
 
-      {/* Support with open/closed filter */}
-      {tab === "support" && (
-        <div className="glass-card overflow-hidden">
-          <div className="p-5 border-b border-border/30 flex justify-between items-center">
-            <h3 className="font-bold text-foreground">Tickets de Suporte</h3>
-            <div className="flex gap-1.5">
-              <button onClick={() => setTicketFilter("open")} className={`px-3 py-1 rounded-lg text-xs font-bold transition ${ticketFilter === "open" ? "bg-success/10 text-success" : "text-muted-foreground"}`}>Abertos</button>
-              <button onClick={() => setTicketFilter("closed")} className={`px-3 py-1 rounded-lg text-xs font-bold transition ${ticketFilter === "closed" ? "bg-muted text-foreground" : "text-muted-foreground"}`}>Fechados</button>
+            <div className="border border-border/40 rounded-xl p-3">
+              <p className="text-xs font-bold text-muted-foreground uppercase mb-2 flex items-center gap-1"><Ban className="w-3 h-3" /> Aplicar banimento</p>
+              <select value={banScope} onChange={(e) => setBanScope(e.target.value as any)} className="w-full p-2 rounded-lg bg-muted text-foreground text-xs border-none outline-none mb-2">
+                <option value="full">Conta inteira (full)</option>
+                <option value="sell">Bloquear vendas</option>
+                <option value="buy">Bloquear compras</option>
+                <option value="withdraw">Bloquear saques</option>
+              </select>
+              <textarea value={banReason} onChange={(e) => setBanReason(e.target.value)} placeholder="Motivo do banimento" rows={2} className="w-full p-2 rounded-lg bg-muted text-foreground text-xs border-none outline-none mb-2 resize-none" />
+              <button onClick={ban} className="w-full bg-destructive text-destructive-foreground py-2 rounded-lg font-bold text-xs">Aplicar banimento</button>
             </div>
           </div>
-          {(() => {
-            const filtered = state.tickets.filter((t) => ticketFilter === "open" ? t.status === "open" : t.status === "closed");
-            return filtered.length === 0 ? (
-              <p className="p-6 text-muted-foreground text-center text-sm">Nenhum ticket {ticketFilter === "open" ? "aberto" : "fechado"}.</p>
-            ) : (
-              <div className="divide-y divide-border/20">
-                {filtered.map((t) => (
-                  <div key={t.id} className="p-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <p className="font-medium text-foreground text-sm">{t.subject}</p>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${t.status === "open" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
-                          {t.status === "open" ? "Aberto" : "Fechado"}
-                        </span>
-                        <p className="text-xs text-muted-foreground">{t.userEmail}</p>
-                      </div>
-                    </div>
-                    <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
-                      {t.messages.map((m, i) => (
-                        <div key={i} className={`p-2 rounded-xl text-xs ${m.from === "admin@keybot.com" ? "bg-primary/10 ml-6" : "bg-muted mr-6"} text-foreground`}>
-                          <span className="font-bold">{m.from === "admin@keybot.com" ? "Admin" : m.from}:</span> {m.text}
-                        </div>
-                      ))}
-                    </div>
-                    {t.status === "open" && (
-                      <>
-                        <div className="flex gap-2 mb-2">
-                          <input value={adminReply} onChange={(e) => setAdminReply(e.target.value)} placeholder="Responder..." className="flex-1 p-2 rounded-xl bg-muted text-foreground text-xs border-none outline-none focus:ring-2 ring-primary" />
-                          <button onClick={() => { if (adminReply) { replyTicket(t.id, adminReply); setAdminReply(""); toast.success("Resposta enviada!"); } }} className="btn-gradient px-3 py-1 text-xs">Enviar</button>
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => { closeTicket(t.id); toast.success("Ticket fechado!"); }} className="text-xs font-bold text-muted-foreground hover:text-foreground">Fechar Ticket</button>
-                          <button onClick={() => { resolveTicket(t.id); toast.success("Ticket resolvido!"); }} className="text-xs font-bold text-success">Marcar Resolvido</button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Notices - textarea starts empty */}
-      {tab === "notices" && (
-        <div className="glass-card p-6">
-          <h3 className="font-bold text-foreground mb-4">Aviso Global</h3>
-          <textarea
-            value={notice}
-            onChange={(e) => setNotice(e.target.value)}
-            rows={4}
-            placeholder="Escreva um aviso para todos os usuários..."
-            className="w-full p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary resize-none mb-3"
-          />
-          <div className="flex gap-2">
-            <button onClick={() => {
-              if (!notice.trim()) { toast.error("Escreva algo antes de publicar."); return; }
-              publishNotice(notice.trim());
-              toast.success("Aviso publicado! Aparecerá no sininho de todos os usuários.");
-              setNotice("");
-            }} className="btn-gradient px-5 py-2 text-sm">Publicar</button>
-            <button onClick={() => { updateConfig({ globalNotice: "" }); setNotice(""); toast.success("Aviso removido!"); }} className="px-5 py-2 text-sm text-destructive font-bold">Limpar</button>
-          </div>
-
-          {/* Published notices history */}
-          {(state.globalNotices || []).length > 0 && (
-            <div className="mt-6">
-              <h4 className="text-xs font-bold text-muted-foreground uppercase mb-3">Avisos Publicados</h4>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {(state.globalNotices || []).map((n) => (
-                  <div key={n.id} className="bg-muted rounded-xl p-3 flex justify-between items-center">
-                    <div>
-                      <p className="text-sm text-foreground">{n.text}</p>
-                      <p className="text-[10px] text-muted-foreground">{new Date(n.date).toLocaleString("pt-BR")}</p>
-                    </div>
-                  </div>
-                ))}
+/* ============== REPORTS ============== */
+function ReportsTab() {
+  const [items, setItems] = useState<any[]>([]);
+  const load = async () => {
+    const { data } = await supabase.from("reports").select("*").order("created_at", { ascending: false }).limit(100);
+    setItems(data || []);
+  };
+  useEffect(() => { load(); }, []);
+  const setStatus = async (id: string, status: string) => {
+    await supabase.from("reports").update({ status }).eq("id", id);
+    toast.success("Status atualizado"); load();
+  };
+  return (
+    <div className="glass-card overflow-hidden">
+      {items.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">Sem denúncias.</p> : (
+        <div className="divide-y divide-border/20">
+          {items.map((r) => (
+            <div key={r.id} className="p-4">
+              <div className="flex justify-between items-start mb-1">
+                <p className="text-sm font-bold text-foreground">{r.category}</p>
+                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${r.status === "open" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>{r.status}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">{r.description}</p>
+              {Array.isArray(r.evidence_urls) && r.evidence_urls.length > 0 && (
+                <p className="text-[10px] text-muted-foreground">{r.evidence_urls.length} anexo(s)</p>
+              )}
+              <div className="flex gap-2 mt-2">
+                <button onClick={() => setStatus(r.id, "reviewing")} className="text-primary text-xs font-bold">Em análise</button>
+                <button onClick={() => setStatus(r.id, "resolved")} className="text-success text-xs font-bold">Resolver</button>
+                <button onClick={() => setStatus(r.id, "dismissed")} className="text-muted-foreground text-xs font-bold">Descartar</button>
               </div>
             </div>
-          )}
+          ))}
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Admin Team Chat */}
-      {tab === "adminchat" && (
-        <div className="glass-card p-6">
-          <h3 className="font-bold text-foreground mb-4 flex items-center gap-2">
-            <ChatEmoji className="w-5 h-5" /> Chat da Equipe
-          </h3>
-          <div className="bg-muted rounded-2xl p-4 mb-4 min-h-[250px] max-h-[400px] overflow-y-auto flex flex-col gap-2">
-            {adminMessages.length === 0 && (
-              <p className="text-center text-muted-foreground text-sm py-10">Nenhuma mensagem. Inicie a conversa!</p>
-            )}
-            {adminMessages.map((m, i) => {
-              const isMe = m.from === state.currentUser?.email;
-              return (
-                <div key={i} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${isMe ? "bg-primary text-primary-foreground rounded-br-md" : "bg-card text-foreground rounded-bl-md"}`}>
-                    <p className={`text-[10px] font-bold mb-0.5 ${isMe ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{m.from}</p>
-                    <p>{m.text}</p>
-                    <p className={`text-[9px] mt-0.5 ${isMe ? "text-primary-foreground/50" : "text-muted-foreground"}`}>
-                      {new Date(m.date).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex gap-2">
-            <input
-              value={chatMsg}
-              onChange={(e) => setChatMsg(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && chatMsg.trim()) { sendAdminChat(state.currentUser!.email, chatMsg.trim()); setChatMsg(""); } }}
-              placeholder="Mensagem para a equipe..."
-              className="flex-1 p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary"
-            />
-            <button onClick={() => { if (chatMsg.trim()) { sendAdminChat(state.currentUser!.email, chatMsg.trim()); setChatMsg(""); } }} className="btn-gradient p-3 rounded-xl">
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
+/* ============== CATEGORIES ============== */
+function CategoriesTab() {
+  const [cats, setCats] = useState<any[]>([]);
+  const [name, setName] = useState("");
+  const load = async () => {
+    const { data } = await supabase.from("categories").select("*").order("sort_order");
+    setCats(data || []);
+  };
+  useEffect(() => { load(); }, []);
+  const add = async () => {
+    if (!name.trim()) return;
+    const slug = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const { error } = await supabase.from("categories").insert({ name: name.trim(), slug, active: true });
+    if (error) return toast.error(error.message);
+    setName(""); load();
+  };
+  const toggle = async (c: any) => { await supabase.from("categories").update({ active: !c.active }).eq("id", c.id); load(); };
+  return (
+    <div className="glass-card p-5">
+      <div className="flex gap-2 mb-4">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nova categoria" className="flex-1 p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary" />
+        <button onClick={add} className="btn-gradient px-4 py-2 text-sm">Adicionar</button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {cats.map((c) => (
+          <button key={c.id} onClick={() => toggle(c)} className={`px-3 py-1.5 rounded-full text-xs font-bold ${c.active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+            {c.name}
+          </button>
+        ))}
+      </div>
+      <p className="text-[10px] text-muted-foreground mt-3">Clique para ativar/desativar.</p>
+    </div>
+  );
+}
 
-      {/* Users */}
-      {tab === "users" && (
-        <div className="glass-card p-6">
-          <h3 className="font-bold text-foreground mb-4">Usuários</h3>
-          <p className="text-sm text-muted-foreground mb-4">Usuários banidos: {state.bannedUsers.length > 0 ? state.bannedUsers.join(", ") : "Nenhum"}</p>
-          <div className="flex gap-2">
-            <input id="ban-email" placeholder="Email para banir" className="flex-1 p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary" />
-            <button onClick={() => { const el = document.getElementById("ban-email") as HTMLInputElement; if (el.value) { banUser(el.value); el.value = ""; toast.success("Usuário banido!"); } }} className="btn-gradient px-4 py-2 text-xs">Banir</button>
-          </div>
-          {state.bannedUsers.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {state.bannedUsers.map((e) => (
-                <span key={e} className="px-3 py-1.5 bg-destructive/10 rounded-full text-xs font-semibold text-destructive flex items-center gap-2">
-                  {e}
-                  <button onClick={() => { unbanUser(e); toast.success("Desbanido!"); }} className="font-bold">×</button>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+/* ============== CONFIG ============== */
+function ConfigTab() {
+  const [cfg, setCfg] = useState<any | null>(null);
+  const [authS, setAuthS] = useState<any | null>(null);
+  const load = async () => {
+    const [{ data: c }, { data: a }] = await Promise.all([
+      supabase.from("app_config").select("*").eq("id", 1).maybeSingle(),
+      supabase.from("auth_settings").select("*").eq("id", 1).maybeSingle(),
+    ]);
+    setCfg(c); setAuthS(a);
+  };
+  useEffect(() => { load(); }, []);
+  const saveCfg = async () => {
+    const { error } = await supabase.from("app_config").update({
+      site_name: cfg.site_name, platform_fee_percent: cfg.platform_fee_percent,
+      balance_release_days: cfg.balance_release_days, withdraw_processing_days_min: cfg.withdraw_processing_days_min,
+      withdraw_processing_days_max: cfg.withdraw_processing_days_max, global_notice: cfg.global_notice,
+      discord_link: cfg.discord_link, maintenance_mode: cfg.maintenance_mode,
+    }).eq("id", 1);
+    if (error) return toast.error(error.message);
+    toast.success("Configurações salvas");
+  };
+  const saveAuth = async () => {
+    const { error } = await supabase.from("auth_settings").update({
+      email_enabled: authS.email_enabled, google_enabled: authS.google_enabled,
+      discord_enabled: authS.discord_enabled, registration_enabled: authS.registration_enabled,
+    }).eq("id", 1);
+    if (error) return toast.error(error.message);
+    toast.success("Login atualizado");
+  };
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-8">
-        <div className="bg-card p-5 rounded-3xl border border-border/40">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase">Taxa Plataforma</p>
-          <p className="text-2xl font-black text-foreground">{state.config.commission}%</p>
+  if (!cfg || !authS) return <Loader2 className="w-6 h-6 animate-spin mx-auto" />;
+
+  return (
+    <div className="space-y-4">
+      <div className="glass-card p-5">
+        <h3 className="font-bold text-foreground mb-3">Geral</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Field label="Nome do site"><input value={cfg.site_name} onChange={(e) => setCfg({ ...cfg, site_name: e.target.value })} className={fieldCls} /></Field>
+          <Field label="Comissão (%)"><input type="number" value={cfg.platform_fee_percent} onChange={(e) => setCfg({ ...cfg, platform_fee_percent: +e.target.value })} className={fieldCls} /></Field>
+          <Field label="Liberar saldo após (dias)"><input type="number" value={cfg.balance_release_days} onChange={(e) => setCfg({ ...cfg, balance_release_days: +e.target.value })} className={fieldCls} /></Field>
+          <Field label="Saque mínimo (dias úteis)"><input type="number" value={cfg.withdraw_processing_days_min} onChange={(e) => setCfg({ ...cfg, withdraw_processing_days_min: +e.target.value })} className={fieldCls} /></Field>
+          <Field label="Saque máximo (dias úteis)"><input type="number" value={cfg.withdraw_processing_days_max} onChange={(e) => setCfg({ ...cfg, withdraw_processing_days_max: +e.target.value })} className={fieldCls} /></Field>
+          <Field label="Link Discord"><input value={cfg.discord_link || ""} onChange={(e) => setCfg({ ...cfg, discord_link: e.target.value })} className={fieldCls} /></Field>
+          <Field label="Aviso global"><input value={cfg.global_notice || ""} onChange={(e) => setCfg({ ...cfg, global_notice: e.target.value })} className={fieldCls} /></Field>
+          <Field label="Modo manutenção">
+            <label className="flex items-center gap-2 mt-2"><input type="checkbox" checked={cfg.maintenance_mode} onChange={(e) => setCfg({ ...cfg, maintenance_mode: e.target.checked })} /> Ativar</label>
+          </Field>
         </div>
-        <div className="bg-card p-5 rounded-3xl border border-border/40">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase">Produtos</p>
-          <p className="text-2xl font-black text-foreground">{state.products.length}</p>
+        <button onClick={saveCfg} className="btn-gradient px-5 py-2.5 text-sm mt-4">Salvar</button>
+      </div>
+
+      <div className="glass-card p-5">
+        <h3 className="font-bold text-foreground mb-3">Métodos de login</h3>
+        {(["email_enabled", "google_enabled", "discord_enabled", "registration_enabled"] as const).map((k) => (
+          <label key={k} className="flex items-center gap-2 text-sm text-foreground py-1">
+            <input type="checkbox" checked={authS[k]} onChange={(e) => setAuthS({ ...authS, [k]: e.target.checked })} />
+            {k === "email_enabled" ? "E-mail/Senha" : k === "google_enabled" ? "Google" : k === "discord_enabled" ? "Discord (requer configuração)" : "Permitir novos cadastros"}
+          </label>
+        ))}
+        <button onClick={saveAuth} className="btn-gradient px-5 py-2.5 text-sm mt-4">Salvar</button>
+      </div>
+
+      <div className="glass-card p-5">
+        <h3 className="font-bold text-foreground mb-2">Gateway Evopay</h3>
+        <div className="bg-success/10 border border-success/30 rounded-xl p-3 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-success" />
+          <p className="text-xs text-foreground">Evopay ativo · token armazenado de forma segura no backend (EVOPAY_API_TOKEN).</p>
         </div>
-        <div className="bg-card p-5 rounded-3xl border border-border/40">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase">Compras</p>
-          <p className="text-2xl font-black text-foreground">{state.purchases.length}</p>
-        </div>
-        <div className="bg-card p-5 rounded-3xl border border-border/40">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase">Disputas</p>
-          <p className="text-2xl font-black text-destructive">{state.purchases.filter((p) => p.status === "dispute").length}</p>
-        </div>
+        <p className="text-[11px] text-muted-foreground mt-2">Para trocar o token, peça no chat. Endpoint usado: <span className="font-mono">https://api.evopay.cash/v1</span></p>
       </div>
     </div>
   );
+}
+
+const fieldCls = "w-full p-3 rounded-xl bg-muted text-foreground text-sm border-none outline-none focus:ring-2 ring-primary";
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div><label className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">{label}</label>{children}</div>;
 }
