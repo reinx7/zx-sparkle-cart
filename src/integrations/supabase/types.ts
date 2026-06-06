@@ -838,37 +838,21 @@ export type Database = {
       }
     }
     Views: {
-      public_profiles: {
-        Row: {
-          avatar_url: string | null
-          created_at: string | null
-          id: string | null
-          is_verified_seller: boolean | null
-          name: string | null
-          public_id: string | null
-        }
-        Insert: {
-          avatar_url?: string | null
-          created_at?: string | null
-          id?: string | null
-          is_verified_seller?: boolean | null
-          name?: string | null
-          public_id?: string | null
-        }
-        Update: {
-          avatar_url?: string | null
-          created_at?: string | null
-          id?: string | null
-          is_verified_seller?: boolean | null
-          name?: string | null
-          public_id?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       generate_public_id: { Args: never; Returns: string }
       get_product_delivery_content: { Args: { _id: string }; Returns: string }
+      get_public_profiles: {
+        Args: { _ids: string[] }
+        Returns: {
+          avatar_url: string
+          id: string
+          is_verified_seller: boolean
+          name: string
+          public_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
