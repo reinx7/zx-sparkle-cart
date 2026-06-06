@@ -42,6 +42,8 @@ Deno.serve(async (req) => {
       amount = Number(variation.price);
     }
 
+    if (!(amount >= 5)) return json({ error: "Valor mínimo de R$ 5,00 por pagamento Pix (Evopay)." }, 400);
+
     const { data: cfg } = await admin.from("app_config").select("platform_fee_percent, balance_release_days").eq("id", 1).single();
     const feePct = Number(cfg?.platform_fee_percent ?? 10);
     const platform_fee = +(amount * feePct / 100).toFixed(2);
