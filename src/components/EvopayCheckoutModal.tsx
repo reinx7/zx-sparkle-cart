@@ -22,11 +22,21 @@ export default function EvopayCheckoutModal({ productId, variationIndex, onClose
       const { data: res, error: err } = await supabase.functions.invoke("evopay-create-payment", {
         body: { product_id: productId, variation_index: variationIndex },
       });
-      if (err || res?.error) {
-        setError(res?.error || err?.message || "Erro ao gerar cobrança");
-        setLoading(false);
-        return;
+      let msg: string | null = null;
+      if (err) {
+        try {
+          const ctx: any = (err as any).context;
+          if (ctx && typeof ctx.json === "function") {
+            const body = await ctx.json();
+            msg = body?.error || body?.detail?.message || JSON.stringify(body);
+          } else {
+            msg = err.message;
+          }
+        } catch { msg = err.message; }
+      } else if (res?.error) {
+        msg = res.error;
       }
+      if (msg) { setError(msg); setLoading(false); return; }
       setData(res);
       setLoading(false);
     })();
