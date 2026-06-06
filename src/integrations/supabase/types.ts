@@ -842,6 +842,17 @@ export type Database = {
     }
     Functions: {
       generate_public_id: { Args: never; Returns: string }
+      get_product_delivery_content: { Args: { _id: string }; Returns: string }
+      get_public_profiles: {
+        Args: { _ids: string[] }
+        Returns: {
+          avatar_url: string
+          id: string
+          is_verified_seller: boolean
+          name: string
+          public_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -854,6 +865,10 @@ export type Database = {
           _scope?: Database["public"]["Enums"]["ban_scope"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      storage_object_in_approved_product: {
+        Args: { _name: string }
         Returns: boolean
       }
     }

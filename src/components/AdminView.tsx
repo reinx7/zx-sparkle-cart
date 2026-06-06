@@ -54,6 +54,25 @@ export default function AdminView() {
   );
 }
 
+function DeliveryContentPreview({ productId }: { productId: string }) {
+  const [content, setContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    (supabase.rpc as any)("get_product_delivery_content", { _id: productId }).then(({ data }: any) => {
+      setContent((data as string) ?? null);
+      setLoading(false);
+    });
+  }, [productId]);
+  return (
+    <div className="mt-3 bg-muted rounded-xl p-3">
+      <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Conteúdo de entrega automática</p>
+      <p className="text-xs font-mono text-foreground break-all">
+        {loading ? "Carregando..." : (content || <span className="italic text-muted-foreground">Sem conteúdo</span>)}
+      </p>
+    </div>
+  );
+}
+
 /* ============== PRODUCTS ============== */
 function ProductsTab() {
   const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
@@ -63,7 +82,8 @@ function ProductsTab() {
   const [reason, setReason] = useState("");
 
   const load = async () => {
-    const { data: prods } = await supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false });
+    const productCols = "id, seller_id, category_id, name, description, price, image_url, banner_url, gallery, delivery_type, variations, stock, sales_count, status, rejection_reason, created_at, updated_at";
+    const { data: prods } = await supabase.from("products").select(`${productCols}, categories(name)`).order("created_at", { ascending: false });
     let rows: any[] = prods || [];
     if (rows.length) {
       const ids = [...new Set(rows.map((p) => p.seller_id))];
@@ -136,10 +156,7 @@ function ProductsTab() {
               <p className="text-xs text-muted-foreground mb-3">R$ {Number(preview.price).toFixed(2)} · {preview.delivery_type}</p>
               <p className="text-sm text-foreground whitespace-pre-wrap">{preview.description}</p>
               {preview.delivery_type === "auto" && (
-                <div className="mt-3 bg-muted rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Conteúdo de entrega automática</p>
-                  <p className="text-xs font-mono text-foreground break-all">{preview.delivery_content}</p>
-                </div>
+                <DeliveryContentPreview productId={preview.id} />
               )}
               <button onClick={() => setPreview(null)} className="mt-4 w-full btn-gradient p-2 text-sm">Fechar</button>
             </div>
