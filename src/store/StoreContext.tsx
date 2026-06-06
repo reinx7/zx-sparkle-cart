@@ -462,7 +462,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return (
     <StoreContext.Provider
       value={{
-        state, login, logout, addProduct, approveProduct, rejectProduct, deleteProduct,
+        state, login, logout, clearLocalUser, addProduct, approveProduct, rejectProduct, deleteProduct,
         buyProduct, approvePurchase, revertPurchase, requestWithdraw,
         approveWithdraw, rejectWithdraw, updateConfig, updateProfile,
         banUser, unbanUser, addTicket, replyTicket, closeTicket, resolveTicket,
