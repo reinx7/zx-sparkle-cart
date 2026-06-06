@@ -120,6 +120,7 @@ interface StoreContextType {
   state: AppState;
   login: (email: string, name: string) => void;
   logout: () => void;
+  clearLocalUser: () => void;
   addProduct: (p: Omit<Product, "id" | "sales" | "rating" | "approved">) => void;
   approveProduct: (id: number) => void;
   rejectProduct: (id: number) => void;
@@ -225,6 +226,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     supabase.auth.signOut().catch(() => {});
     setState((s) => ({ ...s, currentUser: null }));
+  };
+
+  // Clears local user state without calling supabase.auth.signOut() — used by SessionBridge
+  // to react to auth state changes without triggering an infinite loop.
+  const clearLocalUser = () => {
+    setState((s) => (s.currentUser ? { ...s, currentUser: null } : s));
   };
 
   const addProduct = (p: Omit<Product, "id" | "sales" | "rating" | "approved">) => {
@@ -455,7 +462,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return (
     <StoreContext.Provider
       value={{
-        state, login, logout, addProduct, approveProduct, rejectProduct, deleteProduct,
+        state, login, logout, clearLocalUser, addProduct, approveProduct, rejectProduct, deleteProduct,
         buyProduct, approvePurchase, revertPurchase, requestWithdraw,
         approveWithdraw, rejectWithdraw, updateConfig, updateProfile,
         banUser, unbanUser, addTicket, replyTicket, closeTicket, resolveTicket,
