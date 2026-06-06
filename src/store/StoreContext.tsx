@@ -228,6 +228,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, currentUser: null }));
   };
 
+  // Clears local user state without calling supabase.auth.signOut() — used by SessionBridge
+  // to react to auth state changes without triggering an infinite loop.
+  const clearLocalUser = () => {
+    setState((s) => (s.currentUser ? { ...s, currentUser: null } : s));
+  };
+
   const addProduct = (p: Omit<Product, "id" | "sales" | "rating" | "approved">) => {
     setState((s) => ({
       ...s,
