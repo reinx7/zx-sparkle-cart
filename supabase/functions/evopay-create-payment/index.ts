@@ -60,6 +60,10 @@ Deno.serve(async (req) => {
     // Profile for buyer
     const { data: profile } = await admin.from("profiles").select("name, email, phone").eq("id", user.id).single();
 
+    const rawName = profile?.name || "Cliente ZXMAX";
+    let safeName = rawName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z ]/g, " ").replace(/\s+/g, " ").trim();
+    if (!safeName) safeName = "Cliente ZXMAX";
+
     const evoResp = await fetch(`${EVOPAY_BASE}/pix`, {
       method: "POST",
       headers: {
@@ -69,7 +73,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         amount,
         callbackUrl,
-        generatedName: profile?.name || "Cliente ZXMAX",
+        generatedName: safeName,
         generatedEmail: profile?.email || user.email,
         expiresIn: 3600,
         clientReference: order.id,
