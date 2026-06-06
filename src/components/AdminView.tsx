@@ -63,7 +63,8 @@ function ProductsTab() {
   const [reason, setReason] = useState("");
 
   const load = async () => {
-    const { data: prods } = await supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false });
+    const productCols = "id, seller_id, category_id, name, description, price, image_url, banner_url, gallery, delivery_type, variations, stock, sales_count, status, rejection_reason, created_at, updated_at";
+    const { data: prods } = await supabase.from("products").select(`${productCols}, categories(name)`).order("created_at", { ascending: false });
     let rows: any[] = prods || [];
     if (rows.length) {
       const ids = [...new Set(rows.map((p) => p.seller_id))];
@@ -136,10 +137,7 @@ function ProductsTab() {
               <p className="text-xs text-muted-foreground mb-3">R$ {Number(preview.price).toFixed(2)} · {preview.delivery_type}</p>
               <p className="text-sm text-foreground whitespace-pre-wrap">{preview.description}</p>
               {preview.delivery_type === "auto" && (
-                <div className="mt-3 bg-muted rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Conteúdo de entrega automática</p>
-                  <p className="text-xs font-mono text-foreground break-all">{preview.delivery_content}</p>
-                </div>
+                <DeliveryContentPreview productId={preview.id} />
               )}
               <button onClick={() => setPreview(null)} className="mt-4 w-full btn-gradient p-2 text-sm">Fechar</button>
             </div>

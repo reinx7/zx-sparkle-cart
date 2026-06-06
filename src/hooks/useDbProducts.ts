@@ -16,24 +16,25 @@ export function useDbProducts(opts: { onlyMine?: boolean; userId?: string | null
 
   const load = useCallback(async () => {
     setLoading(true);
+    const productCols = "id, seller_id, category_id, name, description, price, image_url, banner_url, gallery, delivery_type, variations, stock, sales_count, status, rejection_reason, created_at, updated_at";
     const [{ data: prods }, { data: cats }] = await Promise.all([
       opts.onlyMine && opts.userId
-        ? supabase.from("products").select("*, categories(name), profiles!products_seller_id_fkey(name, public_id)").eq("seller_id", opts.userId).order("created_at", { ascending: false })
-        : supabase.from("products").select("*, categories(name)").eq("status", "approved").order("created_at", { ascending: false }),
+        ? supabase.from("products").select(`${productCols}, categories(name)`).eq("seller_id", opts.userId).order("created_at", { ascending: false })
+        : supabase.from("products").select(`${productCols}, categories(name)`).eq("status", "approved").order("created_at", { ascending: false }),
       supabase.from("categories").select("*").eq("active", true).order("sort_order"),
     ]);
 
-    // Fetch seller info separately for public view to avoid FK alias issues
+    // Fetch seller info via SECURITY DEFINER RPC (safe public fields only)
     let enriched = (prods || []) as any[];
     if (!opts.onlyMine && enriched.length > 0) {
       const sellerIds = [...new Set(enriched.map((p: any) => p.seller_id))];
-      const { data: profs } = await supabase.from("profiles").select("id, name, public_id, is_verified_seller").in("id", sellerIds);
-      const map = new Map((profs || []).map((p: any) => [p.id, p]));
+      const { data: profs } = await (supabase.rpc as any)("get_public_profiles", { _ids: sellerIds });
+      const map = new Map(((profs as any[]) || []).map((p: any) => [p.id, p]));
       enriched = enriched.map((p: any) => ({
         ...p,
-        seller_name: map.get(p.seller_id)?.name || "Vendedor",
-        seller_public_id: map.get(p.seller_id)?.public_id,
-        seller_verified: map.get(p.seller_id)?.is_verified_seller,
+        seller_name: (map.get(p.seller_id) as any)?.name || "Vendedor",
+        seller_public_id: (map.get(p.seller_id) as any)?.public_id,
+        seller_verified: (map.get(p.seller_id) as any)?.is_verified_seller,
         category_name: p.categories?.name,
       }));
     } else {
