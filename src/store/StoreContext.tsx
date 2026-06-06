@@ -120,6 +120,7 @@ interface StoreContextType {
   state: AppState;
   login: (email: string, name: string) => void;
   logout: () => void;
+  clearLocalUser: () => void;
   addProduct: (p: Omit<Product, "id" | "sales" | "rating" | "approved">) => void;
   approveProduct: (id: number) => void;
   rejectProduct: (id: number) => void;
