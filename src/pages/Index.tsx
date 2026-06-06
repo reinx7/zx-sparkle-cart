@@ -14,27 +14,24 @@ import MyPurchasesView from "@/components/MyPurchasesView";
 type View = "store" | "inventory" | "purchases" | "support" | "admin" | "profile";
 
 function SessionBridge() {
-  const { state, login, logout } = useStore();
+  const { login, clearLocalUser } = useStore();
 
   useEffect(() => {
-    // Listen first, then check existing session
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Listen first, then check existing session.
+    // IMPORTANT: do NOT call `logout()` here — it triggers supabase.auth.signOut()
+    // which fires another auth state change, creating an infinite loop that freezes the page.
+    const apply = (session: any | null) => {
       if (session?.user) {
         const meta: any = session.user.user_metadata ?? {};
         const name = meta.name || meta.full_name || session.user.email?.split("@")[0] || "Usuário";
         login(session.user.email ?? "", name);
       } else {
-        logout();
+        clearLocalUser();
       }
-    });
+    };
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user && !state.currentUser) {
-        const meta: any = data.session.user.user_metadata ?? {};
-        const name = meta.name || meta.full_name || data.session.user.email?.split("@")[0] || "Usuário";
-        login(data.session.user.email ?? "", name);
-      }
-    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => apply(session));
+    supabase.auth.getSession().then(({ data }) => apply(data.session));
 
     return () => sub.subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
