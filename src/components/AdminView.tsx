@@ -54,6 +54,25 @@ export default function AdminView() {
   );
 }
 
+function DeliveryContentPreview({ productId }: { productId: string }) {
+  const [content, setContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    (supabase.rpc as any)("get_product_delivery_content", { _id: productId }).then(({ data }: any) => {
+      setContent((data as string) ?? null);
+      setLoading(false);
+    });
+  }, [productId]);
+  return (
+    <div className="mt-3 bg-muted rounded-xl p-3">
+      <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Conteúdo de entrega automática</p>
+      <p className="text-xs font-mono text-foreground break-all">
+        {loading ? "Carregando..." : (content || <span className="italic text-muted-foreground">Sem conteúdo</span>)}
+      </p>
+    </div>
+  );
+}
+
 /* ============== PRODUCTS ============== */
 function ProductsTab() {
   const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
