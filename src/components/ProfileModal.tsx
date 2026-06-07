@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default function ProfileModal({ open, onClose }: Props) {
-  const { state, updateProfile, requestWithdraw, logout, updatePixKey } = useStore();
+  const { state, updateProfile, logout, updatePixKey } = useStore();
   const user = state.currentUser;
   const [editName, setEditName] = useState(user?.name || "");
   const [editing, setEditing] = useState(false);
@@ -35,12 +35,6 @@ export default function ProfileModal({ open, onClose }: Props) {
     setEditingPix(false);
   };
 
-  const handleWithdraw = (method: "normal" | "instant") => {
-    if (user.balance <= 0) return toast.error("Saldo insuficiente.");
-    if (!user.pixKey) return toast.error("Cadastre sua chave Pix antes de solicitar saque.");
-    requestWithdraw(method);
-    toast.success(`Saque ${method === "instant" ? "instantâneo" : "normal"} solicitado!`);
-  };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-foreground/40 backdrop-blur-sm" onClick={onClose}>
