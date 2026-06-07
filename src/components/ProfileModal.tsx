@@ -114,22 +114,11 @@ export default function ProfileModal({ open, onClose }: Props) {
           )}
         </div>
 
+        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-3 mb-3">
+          <p className="text-[11px] text-foreground"><b>Saques</b> são processados manualmente em 5–7 dias úteis. Use o botão <b>Sacar</b> em Anúncios. Não existe saque instantâneo na ZXMAX — desconfie de quem oferecer.</p>
+        </div>
+
         <div className="space-y-2">
-          <button onClick={() => handleWithdraw("normal")} className="w-full flex items-center justify-between p-4 bg-foreground text-background rounded-xl font-bold text-sm hover:opacity-90 transition">
-            <div className="flex items-center gap-2">
-              <MoneyEmoji className="w-5 h-5" />
-              <span>Saque Normal (5-7 dias)</span>
-            </div>
-          </button>
-          <button onClick={() => handleWithdraw("instant")} className="w-full flex items-center justify-between p-4 btn-gradient text-sm">
-            <div className="flex items-center gap-2">
-              <MoneyEmoji className="w-5 h-5" />
-              <span>Saque Instantâneo (taxa {state.config.instantFee}%)</span>
-            </div>
-          </button>
-          <button className="w-full flex items-center justify-center gap-2 p-3 border border-border rounded-xl text-muted-foreground font-semibold text-sm hover:bg-muted transition">
-            <Upload className="w-4 h-4" /> Enviar Documentos (RG/CPF)
-          </button>
           <button onClick={logout} className="w-full flex items-center justify-center gap-2 p-3 text-destructive font-bold text-sm hover:bg-destructive/5 rounded-xl transition">
             <DoorEmoji className="w-5 h-5" /> Sair da Conta
           </button>

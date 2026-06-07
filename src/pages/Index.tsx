@@ -10,8 +10,9 @@ import InventoryView from "@/components/InventoryView";
 import SupportView from "@/components/SupportView";
 import AdminView from "@/components/AdminView";
 import MyPurchasesView from "@/components/MyPurchasesView";
+import LegalPagesView from "@/components/LegalPagesView";
 
-type View = "store" | "inventory" | "purchases" | "support" | "admin" | "profile";
+type View = "store" | "inventory" | "purchases" | "support" | "admin" | "profile" | "legal";
 
 function SessionBridge() {
   const { login, clearLocalUser } = useStore();
@@ -62,6 +63,7 @@ function Dashboard() {
         {view === "inventory" && <InventoryView />}
         {view === "purchases" && <MyPurchasesView />}
         {view === "support" && <SupportView />}
+        {view === "legal" && <LegalPagesView />}
         {view === "admin" && state.currentUser.isAdmin && <AdminView />}
       </main>
 
