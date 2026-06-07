@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useStore } from "@/store/StoreContext";
-import { StarEmoji, MoneyEmoji, DoorEmoji, CameraEmoji, KeyEmoji } from "@/components/CustomEmojis";
-import { X, Edit, Upload } from "lucide-react";
+import { StarEmoji, DoorEmoji, CameraEmoji, KeyEmoji } from "@/components/CustomEmojis";
+import { X, Edit } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
