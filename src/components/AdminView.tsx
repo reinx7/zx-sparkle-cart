@@ -596,11 +596,23 @@ function ConfigTab() {
           <Field label="Saque máximo (dias úteis)"><input type="number" value={cfg.withdraw_processing_days_max} onChange={(e) => setCfg({ ...cfg, withdraw_processing_days_max: +e.target.value })} className={fieldCls} /></Field>
           <Field label="Link Discord"><input value={cfg.discord_link || ""} onChange={(e) => setCfg({ ...cfg, discord_link: e.target.value })} className={fieldCls} /></Field>
           <Field label="Aviso global"><input value={cfg.global_notice || ""} onChange={(e) => setCfg({ ...cfg, global_notice: e.target.value })} className={fieldCls} /></Field>
-          <Field label="Modo manutenção">
-            <label className="flex items-center gap-2 mt-2"><input type="checkbox" checked={cfg.maintenance_mode} onChange={(e) => setCfg({ ...cfg, maintenance_mode: e.target.checked })} /> Ativar</label>
-          </Field>
+          <Field label="Saque mínimo (R$)"><input type="number" step="0.01" value={cfg.min_withdraw_amount ?? 10} onChange={(e) => setCfg({ ...cfg, min_withdraw_amount: +e.target.value })} className={fieldCls} /></Field>
+          <Field label="Taxa de saque (%)"><input type="number" step="0.01" value={cfg.withdraw_fee_percent ?? 0} onChange={(e) => setCfg({ ...cfg, withdraw_fee_percent: +e.target.value })} className={fieldCls} /></Field>
+          <Field label="Janela de disputa (min até admin entrar)"><input type="number" value={cfg.dispute_admin_window_minutes ?? 5} onChange={(e) => setCfg({ ...cfg, dispute_admin_window_minutes: +e.target.value })} className={fieldCls} /></Field>
         </div>
         <button onClick={saveCfg} className="btn-gradient px-5 py-2.5 text-sm mt-4">Salvar</button>
+      </div>
+
+      <div className="glass-card p-5">
+        <h3 className="font-bold text-foreground mb-3">Textos legais</h3>
+        <div className="space-y-3">
+          {(["rules_text","terms_text","privacy_text","faq_text"] as const).map((k) => (
+            <Field key={k} label={k === "rules_text" ? "Regras" : k === "terms_text" ? "Termos" : k === "privacy_text" ? "Privacidade" : "FAQ"}>
+              <textarea value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })} rows={6} className={fieldCls + " resize-y font-mono text-xs"} />
+            </Field>
+          ))}
+        </div>
+        <button onClick={saveCfg} className="btn-gradient px-5 py-2.5 text-sm mt-4">Salvar textos</button>
       </div>
 
       <div className="glass-card p-5">
