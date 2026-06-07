@@ -34,6 +34,7 @@ export function useDbProducts(opts: { onlyMine?: boolean; userId?: string | null
         ...p,
         seller_name: (map.get(p.seller_id) as any)?.name || "Vendedor",
         seller_public_id: (map.get(p.seller_id) as any)?.public_id,
+        seller_avatar: (map.get(p.seller_id) as any)?.avatar_url,
         seller_verified: (map.get(p.seller_id) as any)?.is_verified_seller,
         category_name: p.categories?.name,
       }));

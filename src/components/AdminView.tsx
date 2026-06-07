@@ -5,7 +5,7 @@ import { ShieldEmoji } from "@/components/CustomEmojis";
 import { Eye, X, Search, Loader2, Check, Ban, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
-type Tab = "config" | "products" | "withdrawals" | "users" | "categories" | "reports";
+type Tab = "config" | "products" | "withdrawals" | "users" | "categories" | "reports" | "kyc";
 
 export default function AdminView() {
   const { user } = useAuthUser();
@@ -22,6 +22,7 @@ export default function AdminView() {
 
   const tabs: { k: Tab; label: string }[] = [
     { k: "products", label: "Produtos" },
+    { k: "kyc", label: "Verificações" },
     { k: "withdrawals", label: "Saques" },
     { k: "users", label: "Usuários" },
     { k: "reports", label: "Denúncias" },
@@ -45,11 +46,122 @@ export default function AdminView() {
       </div>
 
       {tab === "products" && <ProductsTab />}
+      {tab === "kyc" && <KycTab />}
       {tab === "withdrawals" && <WithdrawalsTab />}
       {tab === "users" && <UsersTab />}
       {tab === "reports" && <ReportsTab />}
       {tab === "categories" && <CategoriesTab />}
       {tab === "config" && <ConfigTab />}
+    </div>
+  );
+}
+
+/* ============== KYC ============== */
+function KycTab() {
+  const [items, setItems] = useState<any[]>([]);
+  const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [selected, setSelected] = useState<any | null>(null);
+  const [note, setNote] = useState("");
+  const [urls, setUrls] = useState<{ front?: string; back?: string; selfie?: string }>({});
+
+  const load = async () => {
+    const { data } = await supabase.from("seller_documents").select("*").order("created_at", { ascending: false });
+    let rows: any[] = data || [];
+    if (rows.length) {
+      const ids = [...new Set(rows.map((r) => r.user_id))];
+      const { data: profs } = await supabase.from("profiles").select("id, name, public_id, email").in("id", ids);
+      const map = new Map((profs || []).map((p) => [p.id, p]));
+      rows = rows.map((r) => ({ ...r, profile: map.get(r.user_id) }));
+    }
+    if (filter !== "all") rows = rows.filter((r) => r.status === filter);
+    setItems(rows);
+  };
+  useEffect(() => { load(); }, [filter]);
+
+  const openItem = async (it: any) => {
+    setSelected(it); setNote(it.admin_note || "");
+    const sign = async (p?: string | null) => {
+      if (!p) return undefined;
+      const { data } = await supabase.storage.from("kyc-documents").createSignedUrl(p, 600);
+      return data?.signedUrl;
+    };
+    setUrls({
+      front: await sign(it.doc_front_path),
+      back: await sign(it.doc_back_path),
+      selfie: await sign(it.selfie_path),
+    });
+  };
+
+  const decide = async (status: "approved" | "rejected") => {
+    if (!selected) return;
+    const { error } = await supabase.from("seller_documents").update({
+      status, admin_note: note || null, reviewed_at: new Date().toISOString(),
+    }).eq("id", selected.id);
+    if (error) return toast.error(error.message);
+    if (status === "approved") {
+      await supabase.from("profiles").update({ kyc_status: "approved", is_verified_seller: true }).eq("id", selected.user_id);
+    } else {
+      await supabase.from("profiles").update({ kyc_status: "rejected" }).eq("id", selected.user_id);
+    }
+    toast.success(status === "approved" ? "KYC aprovado — usuário notificado" : "KYC rejeitado — usuário notificado");
+    setSelected(null); setNote(""); setUrls({}); load();
+  };
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-3">
+        {(["pending", "approved", "rejected", "all"] as const).map((f) => (
+          <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+            {f === "pending" ? "Pendentes" : f === "approved" ? "Aprovados" : f === "rejected" ? "Rejeitados" : "Todos"}
+          </button>
+        ))}
+      </div>
+      <div className="glass-card overflow-hidden">
+        {items.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">Nenhuma verificação.</p> : (
+          <div className="divide-y divide-border/20">
+            {items.map((it) => (
+              <button key={it.id} onClick={() => openItem(it)} className="w-full p-4 flex items-center gap-3 hover:bg-muted/30 text-left">
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-foreground text-sm truncate">{it.profile?.name || it.user_id}</p>
+                  <p className="text-[11px] text-muted-foreground">{it.profile?.public_id} · {it.profile?.email}</p>
+                  <p className="text-[10px] text-muted-foreground">{new Date(it.created_at).toLocaleString("pt-BR")}</p>
+                </div>
+                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${it.status === "pending" ? "bg-primary/10 text-primary" : it.status === "approved" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{it.status}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {selected && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-foreground/50 backdrop-blur-sm" onClick={() => setSelected(null)}>
+          <div className="glass-card w-full max-w-2xl p-6 bg-card max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-foreground">{selected.profile?.name}</h3>
+                <p className="text-xs font-mono text-muted-foreground">{selected.profile?.public_id}</p>
+              </div>
+              <button onClick={() => setSelected(null)} className="p-2 hover:bg-muted rounded-xl"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              {(["front", "back", "selfie"] as const).map((k) => (
+                <div key={k}>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">{k === "front" ? "Frente" : k === "back" ? "Verso" : "Selfie"}</p>
+                  {urls[k] ? <img src={urls[k]} alt={k} className="w-full h-40 object-cover rounded-xl border border-border cursor-pointer" onClick={() => window.open(urls[k], "_blank")} /> : <div className="w-full h-40 bg-muted rounded-xl flex items-center justify-center text-xs text-muted-foreground">Sem arquivo</div>}
+                </div>
+              ))}
+            </div>
+
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Nota para o usuário (opcional para aprovar, obrigatório para rejeitar)" className="w-full p-3 rounded-xl bg-muted text-foreground text-sm outline-none focus:ring-2 ring-primary resize-none mb-3" />
+
+            <div className="flex gap-2">
+              <button onClick={() => decide("approved")} className="flex-1 bg-success text-success-foreground py-2.5 rounded-xl font-bold text-sm">✓ Aprovar</button>
+              <button onClick={() => decide("rejected")} disabled={!note.trim()} className="flex-1 bg-destructive text-destructive-foreground py-2.5 rounded-xl font-bold text-sm disabled:opacity-50">✕ Rejeitar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -453,7 +565,11 @@ function ConfigTab() {
       balance_release_days: cfg.balance_release_days, withdraw_processing_days_min: cfg.withdraw_processing_days_min,
       withdraw_processing_days_max: cfg.withdraw_processing_days_max, global_notice: cfg.global_notice,
       discord_link: cfg.discord_link, maintenance_mode: cfg.maintenance_mode,
-    }).eq("id", 1);
+      min_withdraw_amount: cfg.min_withdraw_amount, withdraw_fee_percent: cfg.withdraw_fee_percent,
+      dispute_admin_window_minutes: cfg.dispute_admin_window_minutes,
+      terms_text: cfg.terms_text, privacy_text: cfg.privacy_text,
+      faq_text: cfg.faq_text, rules_text: cfg.rules_text,
+    } as any).eq("id", 1);
     if (error) return toast.error(error.message);
     toast.success("Configurações salvas");
   };
@@ -480,11 +596,23 @@ function ConfigTab() {
           <Field label="Saque máximo (dias úteis)"><input type="number" value={cfg.withdraw_processing_days_max} onChange={(e) => setCfg({ ...cfg, withdraw_processing_days_max: +e.target.value })} className={fieldCls} /></Field>
           <Field label="Link Discord"><input value={cfg.discord_link || ""} onChange={(e) => setCfg({ ...cfg, discord_link: e.target.value })} className={fieldCls} /></Field>
           <Field label="Aviso global"><input value={cfg.global_notice || ""} onChange={(e) => setCfg({ ...cfg, global_notice: e.target.value })} className={fieldCls} /></Field>
-          <Field label="Modo manutenção">
-            <label className="flex items-center gap-2 mt-2"><input type="checkbox" checked={cfg.maintenance_mode} onChange={(e) => setCfg({ ...cfg, maintenance_mode: e.target.checked })} /> Ativar</label>
-          </Field>
+          <Field label="Saque mínimo (R$)"><input type="number" step="0.01" value={cfg.min_withdraw_amount ?? 10} onChange={(e) => setCfg({ ...cfg, min_withdraw_amount: +e.target.value })} className={fieldCls} /></Field>
+          <Field label="Taxa de saque (%)"><input type="number" step="0.01" value={cfg.withdraw_fee_percent ?? 0} onChange={(e) => setCfg({ ...cfg, withdraw_fee_percent: +e.target.value })} className={fieldCls} /></Field>
+          <Field label="Janela de disputa (min até admin entrar)"><input type="number" value={cfg.dispute_admin_window_minutes ?? 5} onChange={(e) => setCfg({ ...cfg, dispute_admin_window_minutes: +e.target.value })} className={fieldCls} /></Field>
         </div>
         <button onClick={saveCfg} className="btn-gradient px-5 py-2.5 text-sm mt-4">Salvar</button>
+      </div>
+
+      <div className="glass-card p-5">
+        <h3 className="font-bold text-foreground mb-3">Textos legais</h3>
+        <div className="space-y-3">
+          {(["rules_text","terms_text","privacy_text","faq_text"] as const).map((k) => (
+            <Field key={k} label={k === "rules_text" ? "Regras" : k === "terms_text" ? "Termos" : k === "privacy_text" ? "Privacidade" : "FAQ"}>
+              <textarea value={cfg[k] ?? ""} onChange={(e) => setCfg({ ...cfg, [k]: e.target.value })} rows={6} className={fieldCls + " resize-y font-mono text-xs"} />
+            </Field>
+          ))}
+        </div>
+        <button onClick={saveCfg} className="btn-gradient px-5 py-2.5 text-sm mt-4">Salvar textos</button>
       </div>
 
       <div className="glass-card p-5">

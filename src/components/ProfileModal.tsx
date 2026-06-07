@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useStore } from "@/store/StoreContext";
-import { StarEmoji, MoneyEmoji, DoorEmoji, CameraEmoji, KeyEmoji } from "@/components/CustomEmojis";
-import { X, Edit, Upload } from "lucide-react";
+import { StarEmoji, DoorEmoji, CameraEmoji, KeyEmoji } from "@/components/CustomEmojis";
+import { X, Edit } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default function ProfileModal({ open, onClose }: Props) {
-  const { state, updateProfile, requestWithdraw, logout, updatePixKey } = useStore();
+  const { state, updateProfile, logout, updatePixKey } = useStore();
   const user = state.currentUser;
   const [editName, setEditName] = useState(user?.name || "");
   const [editing, setEditing] = useState(false);
@@ -35,12 +35,6 @@ export default function ProfileModal({ open, onClose }: Props) {
     setEditingPix(false);
   };
 
-  const handleWithdraw = (method: "normal" | "instant") => {
-    if (user.balance <= 0) return toast.error("Saldo insuficiente.");
-    if (!user.pixKey) return toast.error("Cadastre sua chave Pix antes de solicitar saque.");
-    requestWithdraw(method);
-    toast.success(`Saque ${method === "instant" ? "instantâneo" : "normal"} solicitado!`);
-  };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-foreground/40 backdrop-blur-sm" onClick={onClose}>
@@ -114,22 +108,11 @@ export default function ProfileModal({ open, onClose }: Props) {
           )}
         </div>
 
+        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-3 mb-3">
+          <p className="text-[11px] text-foreground"><b>Saques</b> são processados manualmente em 5–7 dias úteis. Use o botão <b>Sacar</b> em Anúncios. Não existe saque instantâneo na ZXMAX — desconfie de quem oferecer.</p>
+        </div>
+
         <div className="space-y-2">
-          <button onClick={() => handleWithdraw("normal")} className="w-full flex items-center justify-between p-4 bg-foreground text-background rounded-xl font-bold text-sm hover:opacity-90 transition">
-            <div className="flex items-center gap-2">
-              <MoneyEmoji className="w-5 h-5" />
-              <span>Saque Normal (5-7 dias)</span>
-            </div>
-          </button>
-          <button onClick={() => handleWithdraw("instant")} className="w-full flex items-center justify-between p-4 btn-gradient text-sm">
-            <div className="flex items-center gap-2">
-              <MoneyEmoji className="w-5 h-5" />
-              <span>Saque Instantâneo (taxa {state.config.instantFee}%)</span>
-            </div>
-          </button>
-          <button className="w-full flex items-center justify-center gap-2 p-3 border border-border rounded-xl text-muted-foreground font-semibold text-sm hover:bg-muted transition">
-            <Upload className="w-4 h-4" /> Enviar Documentos (RG/CPF)
-          </button>
           <button onClick={logout} className="w-full flex items-center justify-center gap-2 p-3 text-destructive font-bold text-sm hover:bg-destructive/5 rounded-xl transition">
             <DoorEmoji className="w-5 h-5" /> Sair da Conta
           </button>

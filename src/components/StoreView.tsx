@@ -101,10 +101,18 @@ export default function StoreView() {
                 )}
               </div>
               <div className="p-5">
-                <h3 className="font-bold text-foreground leading-tight mb-1">{p.name}</h3>
-                <p className="text-xs text-muted-foreground mb-1">por <span className="text-primary font-semibold">{(p as any).seller_name}</span>
-                  {(p as any).seller_public_id && <span className="ml-1 text-[10px] font-mono">{(p as any).seller_public_id}</span>}
-                </p>
+                <h3 className="font-bold text-foreground leading-tight mb-2">{p.name}</h3>
+                <div className="flex items-center gap-2 mb-2">
+                  {(p as any).seller_avatar ? (
+                    <img src={(p as any).seller_avatar} alt="" className="w-7 h-7 rounded-full object-cover bg-muted" />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">{((p as any).seller_name || "?").charAt(0).toUpperCase()}</div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-primary truncate">{(p as any).seller_name}</p>
+                    {(p as any).seller_public_id && <p className="text-[9px] font-mono text-muted-foreground">{(p as any).seller_public_id}</p>}
+                  </div>
+                </div>
                 <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{p.description}</p>
                 <div className="flex items-end justify-between">
                   <p className="text-xl font-black text-foreground">R$ {Number(p.price).toFixed(2)}</p>

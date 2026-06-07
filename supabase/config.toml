@@ -1,1 +1,19 @@
 project_id = "wczritbkcnvdlugvdwrr"
+
+[functions.evopay-webhook]
+verify_jwt = false
+
+[functions.evopay-create-payment]
+verify_jwt = true
+
+[functions.evopay-resume-payment]
+verify_jwt = true
+
+[functions.request-withdraw]
+verify_jwt = true
+
+[functions.admin-approve-withdraw]
+verify_jwt = true
+
+[functions.release-balances]
+verify_jwt = false

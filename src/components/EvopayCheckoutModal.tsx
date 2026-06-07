@@ -4,13 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface Props {
-  productId: string;
+  productId?: string;
   variationIndex?: number;
+  resumeOrderId?: string;
   onClose: () => void;
   onPaid?: () => void;
 }
 
-export default function EvopayCheckoutModal({ productId, variationIndex, onClose, onPaid }: Props) {
+export default function EvopayCheckoutModal({ productId, variationIndex, resumeOrderId, onClose, onPaid }: Props) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,43 +20,35 @@ export default function EvopayCheckoutModal({ productId, variationIndex, onClose
 
   useEffect(() => {
     (async () => {
-      const { data: res, error: err } = await supabase.functions.invoke("evopay-create-payment", {
-        body: { product_id: productId, variation_index: variationIndex },
-      });
+      const fn = resumeOrderId ? "evopay-resume-payment" : "evopay-create-payment";
+      const body = resumeOrderId ? { order_id: resumeOrderId } : { product_id: productId, variation_index: variationIndex };
+      const { data: res, error: err } = await supabase.functions.invoke(fn, { body });
       let msg: string | null = null;
       if (err) {
         try {
           const ctx: any = (err as any).context;
           if (ctx && typeof ctx.json === "function") {
-            const body = await ctx.json();
-            msg = body?.error || body?.detail?.message || JSON.stringify(body);
-          } else {
-            msg = err.message;
-          }
+            const b = await ctx.json();
+            msg = b?.error || b?.detail?.message || JSON.stringify(b);
+          } else msg = err.message;
         } catch { msg = err.message; }
-      } else if (res?.error) {
-        msg = res.error;
-      }
+      } else if (res?.error) msg = res.error;
       if (msg) { setError(msg); setLoading(false); return; }
-      setData(res);
-      setLoading(false);
+      setData(res); setLoading(false);
     })();
-  }, [productId, variationIndex]);
+  }, [productId, variationIndex, resumeOrderId]);
 
-  // Poll status every 4s
   useEffect(() => {
     if (!data?.order_id) return;
     const t = setInterval(async () => {
       const { data: order } = await supabase.from("orders").select("status").eq("id", data.order_id).maybeSingle();
       if (order && ["paid", "delivered"].includes(order.status)) {
-        setStatus("COMPLETED");
-        clearInterval(t);
+        setStatus("COMPLETED"); clearInterval(t);
         toast.success("Pagamento confirmado!");
         onPaid?.();
-        setTimeout(onClose, 2000);
+        setTimeout(onClose, 1800);
       } else if (order && ["canceled", "refunded"].includes(order.status)) {
-        setStatus("FAILED");
-        clearInterval(t);
+        setStatus("FAILED"); clearInterval(t);
       }
     }, 4000);
     return () => clearInterval(t);
@@ -64,8 +57,7 @@ export default function EvopayCheckoutModal({ productId, variationIndex, onClose
   const copy = async () => {
     if (!data?.qr_code_text) return;
     await navigator.clipboard.writeText(data.qr_code_text);
-    setCopied(true);
-    toast.success("Pix copia-e-cola copiado!");
+    setCopied(true); toast.success("Pix copiado!");
     setTimeout(() => setCopied(false), 2500);
   };
 
@@ -76,55 +68,53 @@ export default function EvopayCheckoutModal({ productId, variationIndex, onClose
           <h3 className="text-lg font-black text-foreground">Pagamento via Pix</h3>
           <button onClick={onClose} className="p-2 hover:bg-muted rounded-xl"><X className="w-5 h-5" /></button>
         </div>
-
         {loading && (
           <div className="py-10 text-center text-muted-foreground">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3" />
-            Gerando cobrança Evopay…
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3" /> Gerando cobrança…
           </div>
         )}
-
         {error && (
           <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-center">
             <p className="text-sm font-bold text-destructive">{error}</p>
             <button onClick={onClose} className="mt-3 text-xs underline">Fechar</button>
           </div>
         )}
-
         {data && !error && (
           <>
             {status === "COMPLETED" ? (
               <div className="py-8 text-center">
                 <CheckCircle className="w-16 h-16 text-success mx-auto mb-3" />
                 <p className="text-lg font-bold text-foreground">Pagamento confirmado!</p>
-                <p className="text-sm text-muted-foreground mt-1">Você receberá a entrega no chat do pedido.</p>
+                <p className="text-sm text-muted-foreground mt-1">Acesse Minhas Compras para ver a entrega.</p>
+              </div>
+            ) : status === "FAILED" ? (
+              <div className="py-8 text-center">
+                <p className="text-lg font-bold text-destructive">Pagamento cancelado</p>
+                <button onClick={onClose} className="mt-3 underline text-xs">Fechar</button>
               </div>
             ) : (
               <>
                 <p className="text-2xl font-black text-foreground text-center mb-1">R$ {Number(data.amount).toFixed(2)}</p>
                 <p className="text-xs text-muted-foreground text-center mb-4">Aguardando pagamento…</p>
-
                 {data.qr_code_url && (
                   <div className="bg-white rounded-2xl p-4 mb-4 flex items-center justify-center">
-                    <img src={data.qr_code_url} alt="QR Code Pix" className="w-56 h-56 object-contain" />
+                    <img src={data.qr_code_url} alt="QR Pix" className="w-56 h-56 object-contain" />
                   </div>
                 )}
-
                 {data.qr_code_text && (
                   <div className="mb-3">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Pix copia-e-cola</label>
                     <div className="flex gap-2">
-                      <input readOnly value={data.qr_code_text} className="flex-1 p-3 rounded-xl bg-muted text-foreground text-xs font-mono border-none outline-none truncate" />
-                      <button onClick={copy} className="btn-gradient px-4 py-2 text-xs flex items-center gap-1">
+                      <input readOnly value={data.qr_code_text} className="flex-1 p-3 rounded-xl bg-muted text-foreground text-xs font-mono outline-none truncate" />
+                      <button onClick={copy} className="btn-gradient px-4 py-2 text-xs">
                         {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
                 )}
-
-                <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mt-3 flex items-center gap-2">
+                <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                  <p className="text-xs text-foreground">Após pagar, o saldo é confirmado automaticamente.</p>
+                  <p className="text-xs text-foreground">Pode fechar — o pedido fica em Minhas Compras como Pendente. Clique em "Pagar com Pix" lá para retomar.</p>
                 </div>
               </>
             )}
