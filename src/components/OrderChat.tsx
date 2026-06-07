@@ -90,7 +90,7 @@ export default function OrderChat({ orderId, buyerId, sellerId, myRole, status, 
     if (!user || locked) return;
     if (file.size > 5 * 1024 * 1024) return toast.error("Imagem máx. 5MB");
     setSending(true);
-    const path = `${orderId}/${user.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const path = `${user.id}/orders/${orderId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const { error: upErr } = await supabase.storage.from("report-evidence").upload(path, file);
     if (upErr) { setSending(false); return toast.error(upErr.message); }
     const { data: signed } = await supabase.storage.from("report-evidence").createSignedUrl(path, 60 * 60 * 24 * 30);
