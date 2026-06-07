@@ -7,4 +7,5 @@ import { ShieldEmoji } from "@/components/CustomEmojis";
 import { Bell, CreditCard, Loader2, MessageCircle, Search, ShieldAlert, ShoppingBag, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
-type Tab = "resumo" | "classico" | "compr
+type Tab = "resumo" | "classico" | "compras" | "disputas" | "notificacoes" | "auth";
+const money = (v
