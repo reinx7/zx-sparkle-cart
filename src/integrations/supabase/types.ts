@@ -48,45 +48,66 @@ export type Database = {
         Row: {
           balance_release_days: number
           discord_link: string | null
+          dispute_admin_window_minutes: number
+          faq_text: string
           global_notice: string | null
           id: number
           logo_url: string | null
           maintenance_mode: boolean
+          min_withdraw_amount: number
           platform_fee_percent: number
+          privacy_text: string
           privacy_url: string | null
+          rules_text: string
           site_name: string
+          terms_text: string
           terms_url: string | null
           updated_at: string
+          withdraw_fee_percent: number
           withdraw_processing_days_max: number
           withdraw_processing_days_min: number
         }
         Insert: {
           balance_release_days?: number
           discord_link?: string | null
+          dispute_admin_window_minutes?: number
+          faq_text?: string
           global_notice?: string | null
           id?: number
           logo_url?: string | null
           maintenance_mode?: boolean
+          min_withdraw_amount?: number
           platform_fee_percent?: number
+          privacy_text?: string
           privacy_url?: string | null
+          rules_text?: string
           site_name?: string
+          terms_text?: string
           terms_url?: string | null
           updated_at?: string
+          withdraw_fee_percent?: number
           withdraw_processing_days_max?: number
           withdraw_processing_days_min?: number
         }
         Update: {
           balance_release_days?: number
           discord_link?: string | null
+          dispute_admin_window_minutes?: number
+          faq_text?: string
           global_notice?: string | null
           id?: number
           logo_url?: string | null
           maintenance_mode?: boolean
+          min_withdraw_amount?: number
           platform_fee_percent?: number
+          privacy_text?: string
           privacy_url?: string | null
+          rules_text?: string
           site_name?: string
+          terms_text?: string
           terms_url?: string | null
           updated_at?: string
+          withdraw_fee_percent?: number
           withdraw_processing_days_max?: number
           withdraw_processing_days_min?: number
         }
@@ -184,6 +205,8 @@ export type Database = {
       }
       disputes: {
         Row: {
+          admin_required_at: string | null
+          canceled_at: string | null
           created_at: string
           id: string
           messages: Json
@@ -195,6 +218,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          admin_required_at?: string | null
+          canceled_at?: string | null
           created_at?: string
           id?: string
           messages?: Json
@@ -206,6 +231,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          admin_required_at?: string | null
+          canceled_at?: string | null
           created_at?: string
           id?: string
           messages?: Json
@@ -289,15 +316,57 @@ export type Database = {
         }
         Relationships: []
       }
+      order_messages: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          image_path: string | null
+          order_id: string
+          sender_id: string
+          sender_role: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          image_path?: string | null
+          order_id: string
+          sender_id: string
+          sender_role?: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          image_path?: string | null
+          order_id?: string
+          sender_id?: string
+          sender_role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_messages_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           amount: number
           buyer_id: string
+          checkout_expires_at: string | null
           created_at: string
           delivered_content: string | null
           id: string
           platform_fee: number
           product_id: string
+          refund_reason: string | null
+          refunded_at: string | null
+          refunded_by: string | null
           release_at: string | null
           released: boolean
           seller_amount: number
@@ -309,11 +378,15 @@ export type Database = {
         Insert: {
           amount: number
           buyer_id: string
+          checkout_expires_at?: string | null
           created_at?: string
           delivered_content?: string | null
           id?: string
           platform_fee?: number
           product_id: string
+          refund_reason?: string | null
+          refunded_at?: string | null
+          refunded_by?: string | null
           release_at?: string | null
           released?: boolean
           seller_amount?: number
@@ -325,11 +398,15 @@ export type Database = {
         Update: {
           amount?: number
           buyer_id?: string
+          checkout_expires_at?: string | null
           created_at?: string
           delivered_content?: string | null
           id?: string
           platform_fee?: number
           product_id?: string
+          refund_reason?: string | null
+          refunded_at?: string | null
+          refunded_by?: string | null
           release_at?: string | null
           released?: boolean
           seller_amount?: number
@@ -841,6 +918,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_order_dispute: {
+        Args: { _dispute_id: string }
+        Returns: undefined
+      }
       generate_public_id: { Args: never; Returns: string }
       get_product_delivery_content: { Args: { _id: string }; Returns: string }
       get_public_profiles: {
@@ -866,6 +947,15 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      mark_order_delivered: { Args: { _order_id: string }; Returns: undefined }
+      open_order_dispute: {
+        Args: { _order_id: string; _reason: string }
+        Returns: string
+      }
+      refund_order: {
+        Args: { _order_id: string; _reason: string }
+        Returns: undefined
       }
       storage_object_in_approved_product: {
         Args: { _name: string }
