@@ -5,7 +5,7 @@ import { ShieldEmoji } from "@/components/CustomEmojis";
 import { Eye, X, Search, Loader2, Check, Ban, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
-type Tab = "config" | "products" | "withdrawals" | "users" | "categories" | "reports" | "kyc";
+type Tab = "config" | "products" | "withdrawals" | "users" | "categories" | "reports" | "kyc" | "tickets";
 
 export default function AdminView() {
   const { user } = useAuthUser();
@@ -22,6 +22,7 @@ export default function AdminView() {
 
   const tabs: { k: Tab; label: string }[] = [
     { k: "products", label: "Produtos" },
+    { k: "tickets", label: "Tickets" },
     { k: "kyc", label: "Verificações" },
     { k: "withdrawals", label: "Saques" },
     { k: "users", label: "Usuários" },
@@ -46,6 +47,7 @@ export default function AdminView() {
       </div>
 
       {tab === "products" && <ProductsTab />}
+      {tab === "tickets" && <TicketsTab />}
       {tab === "kyc" && <KycTab />}
       {tab === "withdrawals" && <WithdrawalsTab />}
       {tab === "users" && <UsersTab />}
@@ -642,3 +644,221 @@ const fieldCls = "w-full p-3 rounded-xl bg-muted text-foreground text-sm border-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div><label className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">{label}</label>{children}</div>;
 }
+
+/* ============== TICKETS ============== */
+type AdminTicketMsg = { from: "user" | "admin"; text: string; date: string };
+type AdminTicket = {
+  id: string;
+  user_id: string;
+  subject: string;
+  category: string;
+  priority: number;
+  status: "open" | "waiting_user" | "waiting_admin" | "resolved" | "closed";
+  messages: AdminTicketMsg[];
+  created_at: string;
+  updated_at: string;
+};
+
+function TicketsTab() {
+  const [tickets, setTickets] = useState<AdminTicket[]>([]);
+  const [profiles, setProfiles] = useState<Map<string, any>>(new Map());
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "open" | "waiting_admin" | "waiting_user" | "resolved" | "closed">("all");
+  const [selected, setSelected] = useState<AdminTicket | null>(null);
+  const [reply, setReply] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from("support_tickets")
+      .select("*").order("updated_at", { ascending: false }).limit(500);
+    if (error) toast.error("Erro ao carregar tickets");
+    const rows = ((data as any) || []).map((t: any) => ({ ...t, messages: Array.isArray(t.messages) ? t.messages : [] })) as AdminTicket[];
+    setTickets(rows);
+    if (rows.length) {
+      const ids = [...new Set(rows.map(r => r.user_id))];
+      const { data: profs } = await (supabase.rpc as any)("get_public_profiles", { _ids: ids });
+      const map = new Map<string, any>();
+      ((profs as any[]) || []).forEach(p => map.set(p.id, p));
+      setProfiles(map);
+    }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (!selected) return;
+    const fresh = tickets.find(t => t.id === selected.id);
+    if (fresh) setSelected(fresh);
+  }, [tickets]); // eslint-disable-line
+
+  const filtered = filter === "all" ? tickets : tickets.filter(t => t.status === filter);
+  const openCount = tickets.filter(t => t.status === "waiting_admin" || t.status === "open").length;
+
+  const sendReply = async () => {
+    if (!selected) return;
+    const text = reply.trim();
+    if (!text) return;
+    if (text.length > 4000) return toast.error("Mensagem muito longa.");
+    setBusy(true);
+    const newMsg: AdminTicketMsg = { from: "admin", text, date: new Date().toISOString() };
+    const nextMessages = [...selected.messages, newMsg];
+    const { error } = await supabase.from("support_tickets")
+      .update({ messages: nextMessages as any, status: "waiting_user" as any, updated_at: new Date().toISOString() })
+      .eq("id", selected.id);
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    // Notify user
+    await supabase.from("notifications").insert({
+      user_id: selected.user_id,
+      type: "ticket_reply",
+      title: "Suporte respondeu seu ticket",
+      body: selected.subject,
+    });
+    setReply("");
+    load();
+  };
+
+  const changeStatus = async (status: AdminTicket["status"]) => {
+    if (!selected) return;
+    const { error } = await supabase.from("support_tickets")
+      .update({ status: status as any, updated_at: new Date().toISOString() })
+      .eq("id", selected.id);
+    if (error) return toast.error(error.message);
+    toast.success("Status atualizado");
+    if (status === "resolved" || status === "closed") {
+      await supabase.from("notifications").insert({
+        user_id: selected.user_id,
+        type: "ticket_status",
+        title: status === "closed" ? "Ticket fechado" : "Ticket resolvido",
+        body: selected.subject,
+      });
+    }
+    load();
+  };
+
+  if (loading) return <div className="p-10 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
+
+  if (selected) {
+    const prof = profiles.get(selected.user_id);
+    return (
+      <div>
+        <button onClick={() => setSelected(null)} className="text-primary text-sm font-bold mb-3">← Voltar</button>
+        <div className="glass-card p-5 mb-3">
+          <div className="flex justify-between items-start gap-3 mb-2">
+            <div className="min-w-0 flex-1">
+              <h3 className="font-bold text-foreground truncate">{selected.subject}</h3>
+              <p className="text-xs text-muted-foreground">
+                {selected.category} • {prof?.name || "Usuário"} <span className="font-mono">{prof?.public_id || ""}</span>
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                Aberto em {new Date(selected.created_at).toLocaleString("pt-BR")}
+              </p>
+            </div>
+            <AdminStatusPill s={selected.status} />
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <button onClick={() => changeStatus("waiting_user")} className="text-xs font-bold bg-blue-500/10 text-blue-500 px-3 py-1.5 rounded-full">Aguardando usuário</button>
+            <button onClick={() => changeStatus("resolved")} className="text-xs font-bold bg-emerald-500/10 text-emerald-500 px-3 py-1.5 rounded-full">Resolver</button>
+            <button onClick={() => changeStatus("closed")} className="text-xs font-bold bg-muted text-muted-foreground px-3 py-1.5 rounded-full">Fechar</button>
+            {selected.status === "closed" && (
+              <button onClick={() => changeStatus("open")} className="text-xs font-bold bg-primary/10 text-primary px-3 py-1.5 rounded-full">Reabrir</button>
+            )}
+          </div>
+        </div>
+
+        <div className="glass-card p-5">
+          <div className="space-y-3 mb-4 max-h-96 overflow-y-auto pr-1">
+            {selected.messages.map((m, i) => {
+              const isAdmin = m.from === "admin";
+              return (
+                <div key={i} className={`p-3 rounded-2xl text-sm ${isAdmin ? "bg-primary/10 text-foreground ml-6" : "bg-muted text-foreground mr-6"}`}>
+                  <p className="text-[10px] text-muted-foreground mb-1 font-semibold">
+                    {isAdmin ? "Suporte (você)" : prof?.name || "Usuário"} • {new Date(m.date).toLocaleString("pt-BR")}
+                  </p>
+                  <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          {selected.status !== "closed" ? (
+            <div className="flex gap-2">
+              <input value={reply} onChange={(e) => setReply(e.target.value)} maxLength={4000}
+                placeholder="Responder..."
+                className="flex-1 p-3 rounded-xl bg-muted border-none focus:ring-2 ring-primary outline-none text-foreground text-sm"
+                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendReply()} />
+              <button onClick={sendReply} disabled={busy} className="btn-gradient px-4 py-2 disabled:opacity-50">
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Enviar"}
+              </button>
+            </div>
+          ) : (
+            <p className="text-center text-xs text-muted-foreground">Ticket fechado.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const filters: { k: typeof filter; label: string }[] = [
+    { k: "all", label: `Todos (${tickets.length})` },
+    { k: "waiting_admin", label: `Aguardando (${openCount})` },
+    { k: "waiting_user", label: "Aguardando usuário" },
+    { k: "resolved", label: "Resolvidos" },
+    { k: "closed", label: "Fechados" },
+  ];
+
+  return (
+    <div>
+      <div className="flex gap-1.5 overflow-x-auto pb-3 mb-4 scrollbar-hide">
+        {filters.map(f => (
+          <button key={f.k} onClick={() => setFilter(f.k)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold ${filter === f.k ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-center text-sm text-muted-foreground py-10">Nenhum ticket.</p>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(t => {
+            const prof = profiles.get(t.user_id);
+            return (
+              <button key={t.id} onClick={() => setSelected(t)}
+                className="w-full glass-card p-4 flex justify-between items-start text-left hover:ring-2 hover:ring-primary/30">
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-foreground text-sm truncate">{t.subject}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t.category} • {prof?.name || "Usuário"} <span className="font-mono">{prof?.public_id || ""}</span>
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {t.messages.length} msg • Atualizado {new Date(t.updated_at).toLocaleString("pt-BR")}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <AdminStatusPill s={t.status} />
+                  {t.priority >= 3 && <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-destructive/20 text-destructive">Urgente</span>}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminStatusPill({ s }: { s: AdminTicket["status"] }) {
+  const map: Record<AdminTicket["status"], { l: string; c: string }> = {
+    open: { l: "Aberto", c: "bg-primary/20 text-primary border-primary/30" },
+    waiting_admin: { l: "Aguardando", c: "bg-yellow-500/20 text-yellow-600 border-yellow-500/30" },
+    waiting_user: { l: "Aguardando user", c: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
+    resolved: { l: "Resolvido", c: "bg-emerald-500/20 text-emerald-600 border-emerald-500/30" },
+    closed: { l: "Fechado", c: "bg-muted text-muted-foreground border-border" },
+  };
+  const m = map[s] || map.open;
+  return <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border shrink-0 ${m.c}`}>{m.l}</span>;
+}
+
