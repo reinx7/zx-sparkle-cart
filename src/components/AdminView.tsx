@@ -5,7 +5,7 @@ import { ShieldEmoji } from "@/components/CustomEmojis";
 import { Eye, X, Search, Loader2, Check, Ban, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
-type Tab = "config" | "products" | "withdrawals" | "users" | "categories" | "reports" | "kyc";
+type Tab = "config" | "products" | "withdrawals" | "users" | "categories" | "reports" | "kyc" | "tickets";
 
 export default function AdminView() {
   const { user } = useAuthUser();
