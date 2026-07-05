@@ -22,6 +22,7 @@ export default function AdminView() {
 
   const tabs: { k: Tab; label: string }[] = [
     { k: "products", label: "Produtos" },
+    { k: "tickets", label: "Tickets" },
     { k: "kyc", label: "Verificações" },
     { k: "withdrawals", label: "Saques" },
     { k: "users", label: "Usuários" },
@@ -46,6 +47,7 @@ export default function AdminView() {
       </div>
 
       {tab === "products" && <ProductsTab />}
+      {tab === "tickets" && <TicketsTab />}
       {tab === "kyc" && <KycTab />}
       {tab === "withdrawals" && <WithdrawalsTab />}
       {tab === "users" && <UsersTab />}
